@@ -6,10 +6,18 @@ import { registerValidation, loginValidation, handleValidation } from './validat
 import bcrypt from "bcryptjs";
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import cors from 'cors';
 dotenv.config({ path: '../.env' });
 const app = express();
 const port = 3000;
 app.use(express.json());
+if (process.env.NODE_ENV === 'development') {
+    const corsOptions = {
+        origin: 'http://localhost:3000',
+        optionsSuccessStatus: 200
+    };
+    app.use(cors(corsOptions));
+}
 console.log("Server is running");
 const mongoDB = "mongodb://127.0.0.1:27017/testdb";
 mongoose.connect(mongoDB);
@@ -38,10 +46,15 @@ app.post('/api/auth/register', registerValidation, handleValidation, async (req,
 });
 app.post('/api/auth/login', loginValidation, handleValidation, async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const { email, username, password } = req.body;
+        const user = await User.findOne({
+            $or: [
+                { email: email },
+                { username: username }
+            ]
+        });
         if (!user) {
-            return res.status(404).json({ error: "User not found" });
+            return res.status(404).json({ error: "Invalid email/username" });
         }
         const checkValidPassword = await bcrypt.compare(password, user.password);
         if (!checkValidPassword) {
@@ -51,7 +64,7 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req, res) 
             _id: user._id,
             username: user.username,
             isAdmin: user.isAdmin
-        }, process.env.SECRET, { expiresIn: '15min' });
+        }, process.env.SECRET, { expiresIn: '5min' });
         res.status(200).json({ token });
     }
     catch (error) {

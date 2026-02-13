@@ -6,6 +6,8 @@ import { registerValidation, loginValidation, handleValidation } from './validat
 import bcrypt from "bcryptjs";
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import cors from 'cors';
+import type { CorsOptions } from 'cors';
 
 dotenv.config({ path: '../.env' });
 
@@ -13,6 +15,16 @@ const app = express();
 const port = 3000;
 
 app.use(express.json());
+
+if (process.env.NODE_ENV === 'development') {
+    const corsOptions: CorsOptions = {
+        origin: 'http://localhost:3000',
+        optionsSuccessStatus: 200
+    }
+
+    app.use(cors(corsOptions))
+
+}
 
 console.log("Server is running");
 
@@ -49,10 +61,17 @@ app.post('/api/auth/register', registerValidation, handleValidation, async (req:
 
 app.post('/api/auth/login', loginValidation, handleValidation, async (req: Request, res: Response) => {
     try{
-        const { email, password } = req.body;
-        const user = await User.findOne( {email} )
+        const { email, username, password } = req.body;
+
+        const user = await User.findOne({ // find matching email or username
+            $or: [
+                { email: email },
+                { username: username }
+            ]
+        });
+
         if(!user) {
-            return res.status(404).json({error: "User not found"})
+            return res.status(404).json({error: "Invalid email/username"})
         }
         
         const checkValidPassword = await bcrypt.compare(password, user.password);
@@ -67,7 +86,7 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req: Reque
                 isAdmin: user.isAdmin
             },
             process.env.SECRET as string,
-            {expiresIn: '15min'}
+            {expiresIn: '5min'}
         )
 
         res.status(200).json({ token })
