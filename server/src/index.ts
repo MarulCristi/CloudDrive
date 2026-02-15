@@ -2,12 +2,21 @@ import express, { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { authenticateUser, authenticateAdmin } from './middleware/validateToken.js';
 import { User } from './models/User.js';
+// Registration
 import { registerValidation, loginValidation, handleValidation } from './validators/inputValidation.js';
 import bcrypt from "bcryptjs";
+// Token
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+// Connect React with Node.js
 import cors from 'cors';
 import type { CorsOptions } from 'cors';
+// File management
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { File } from './models/File.js'; 
+
 
 dotenv.config({ path: '../.env' });
 
@@ -34,6 +43,79 @@ mongoose.Promise = Promise
 const db = mongoose.connection
 
 db.on("error", console.error.bind(console, "MongoDB connection error"))
+
+
+// Default Multer setup (similar to lectures)
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const userId = (req as any).user._id; // Access user ID from auth middleware
+        const uploadPath = path.join('uploads', userId.toString()); // new uploads folder created with userID
+
+        // Creating user folder if it doesn't exist.
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        // Generate unique filename to avoid conflicts. 
+        // 1E9 = 1 Billion random number + Date + name of file = impossible to have the same filename.
+        cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
+    }
+  })
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit to avoid ruining my computer
+})
+
+app.post('/api/files/upload', authenticateUser, upload.single('file'), async (req: Request, res: Response) => {
+    try {
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        const user = (req as any).user; // From authenticateUser
+        if (!user || !user._id) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+
+        const file = req.file;
+        const fileData = {
+            userId: user._id,
+            filename: file.filename,
+            originalName: file.originalname,
+            path: file.path,
+            size: file.size,
+            
+        }
+
+        const newFile = new File(fileData);
+        await newFile.save()
+
+        res.status(201).json({ message: 'File uploaded successfully', file: newFile });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to upload file' });
+    }
+})
+
+app.get('/api/files', authenticateUser, async (req: Request, res: Response) => {
+    try {
+        const user = (req as any).user;
+        if (!user || !user._id) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+        
+        const files = await File.find({ userId: user._id }).select('-__v') // This excludes __v from the MongoDB.
+        res.status(200).json({ files })
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to get any files.'})
+    }
+})
 
 app.post('/api/auth/register', registerValidation, handleValidation, async (req: Request, res: Response) => {
     try {
@@ -96,6 +178,8 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req: Reque
     }
 
 })
+
+
 
 app.listen(port, () => {
     console.log(`Server is listening on port ${port}`);
