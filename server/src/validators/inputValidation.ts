@@ -13,7 +13,7 @@ export const registerValidation = [
 ]
 
 export const loginValidation = [
-    body('email').trim().isEmail().normalizeEmail().escape(),
+    body('email').trim().escape(),
     body('password').exists({ checkFalsy: true})
 ]
 

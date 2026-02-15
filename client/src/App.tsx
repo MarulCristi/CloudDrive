@@ -2,12 +2,11 @@ import './App.css'
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import { CssBaseline, Box, Button, AppBar, Toolbar } from '@mui/material';
+import { CssBaseline, Button, AppBar, Toolbar } from '@mui/material';
 import { Brightness4, Brightness7 } from '@mui/icons-material';
 import LoginComponent from './components/LoginComponent';
 import ProtectedRoute from './components/Protected';
-
-const theme = createTheme();
+import RegisterComponent from './components/RegisterComponent';
 
 
 function App() {
@@ -42,6 +41,7 @@ function App() {
         </AppBar>
           <Routes>
             <Route path="/login" element={<LoginComponent />} />
+            <Route path="/register" element={<RegisterComponent />} />
             <Route
               path="/"
               element={

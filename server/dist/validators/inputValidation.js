@@ -10,7 +10,7 @@ export const registerValidation = [
         .not().matches(/(.)\1\1/).withMessage("Password cannot have the same character 3 times sequentially.") // new password match i decided to add.
 ];
 export const loginValidation = [
-    body('email').trim().isEmail().normalizeEmail().escape(),
+    body('email').trim().escape(),
     body('password').exists({ checkFalsy: true })
 ];
 export const handleValidation = (req, res, next) => {
