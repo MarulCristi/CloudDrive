@@ -7,6 +7,7 @@ import { Brightness4, Brightness7 } from '@mui/icons-material';
 import LoginComponent from './components/LoginComponent';
 import ProtectedRoute from './components/Protected';
 import RegisterComponent from './components/RegisterComponent';
+import FileManager from './components/FileManager';
 
 
 function App() {
@@ -46,7 +47,7 @@ function App() {
               path="/"
               element={
                 <ProtectedRoute>
-                  <h1>Welcome to Cloud Drive</h1>
+                  <FileManager />
                 </ProtectedRoute>
               }
             />

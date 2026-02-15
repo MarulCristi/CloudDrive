@@ -168,7 +168,7 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req: Reque
                 isAdmin: user.isAdmin
             },
             process.env.SECRET as string,
-            {expiresIn: '5min'}
+            {expiresIn: '6h'}
         )
 
         res.status(200).json({ token })

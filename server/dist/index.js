@@ -133,7 +133,7 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req, res) 
             _id: user._id,
             username: user.username,
             isAdmin: user.isAdmin
-        }, process.env.SECRET, { expiresIn: '5min' });
+        }, process.env.SECRET, { expiresIn: '6h' });
         res.status(200).json({ token });
     }
     catch (error) {
