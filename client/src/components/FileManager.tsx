@@ -8,9 +8,10 @@ import {
     ListItemText,
     Alert,
     CircularProgress,
-    Paper
+    Paper,
+    IconButton
 } from '@mui/material';
-import { CloudUpload } from '@mui/icons-material';
+import { CloudUpload, Delete } from '@mui/icons-material';
 
 interface FileData {
     _id: string;
@@ -73,6 +74,12 @@ function FileManager() {
             return;
         }
 
+        const allowedTypes = ['text/plain', 'text/html', 'text/markdown', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!allowedTypes.includes(selectedFile.type)) {
+            setError('Only text, PDF, or DOCX files are allowed!');
+            return;
+        }
+
         setUploading(true);
         setError('');
         setSuccess('');
@@ -110,6 +117,29 @@ function FileManager() {
         }
     };
 
+    const handleDelete = async (fileId: string) => {
+        setError('');
+        setSuccess('');
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/files/${fileId}`, {
+                method: 'DELETE',
+                headers: {
+                    'authorization': `Bearer ${token}` 
+                }
+            })
+            if (response.ok) {
+                setFiles(files.filter(f => f._id !== fileId));
+                setSuccess('File deleted successfully');
+            } else {
+                const data = await response.json();
+                setError(data.error || 'Failed to delete file');
+            }
+        } catch (error) {
+            setError('Some network error')
+        }
+    }
+
     const formatFileSize = (bytes: number) => {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -144,6 +174,7 @@ function FileManager() {
                         <input
                             id="file-input"
                             type="file"
+                            accept='.txt,.html,.md,.pdf,.docx' // accept only text files.
                             hidden
                             onChange={handleFileSelect}
                         />
@@ -185,6 +216,11 @@ function FileManager() {
                         {files.map((file) => (
                             <ListItem 
                                 key={file._id}
+                                secondaryAction={
+                                <IconButton edge="end" onClick={() => handleDelete(file._id)}>
+                                    <Delete />
+                                </IconButton>
+                                }
                                 sx={{ 
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',

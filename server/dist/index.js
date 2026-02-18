@@ -32,6 +32,15 @@ mongoose.connect(mongoDB);
 mongoose.Promise = Promise;
 const db = mongoose.connection;
 db.on("error", console.error.bind(console, "MongoDB connection error"));
+// File filter to only allow text files
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('text/') || file.mimetype === 'application/pdf' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        cb(null, true);
+    }
+    else {
+        cb(new Error('Only text files are allowed!'));
+    }
+};
 // Default Multer setup (similar to lectures)
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -51,7 +60,8 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
     storage,
-    limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit to avoid ruining my computer
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit to avoid ruining my computer
+    fileFilter
 });
 app.post('/api/files/upload', authenticateUser, upload.single('file'), async (req, res) => {
     try {
@@ -75,7 +85,7 @@ app.post('/api/files/upload', authenticateUser, upload.single('file'), async (re
         res.status(201).json({ message: 'File uploaded successfully', file: newFile });
     }
     catch (error) {
-        console.error(error);
+        // console.error(error);
         res.status(500).json({ error: 'Failed to upload file' });
     }
 });
@@ -139,6 +149,40 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req, res) 
     catch (error) {
         console.log(error);
         res.status(500).json({ error: "Internal Server Error when logging in." });
+    }
+});
+app.delete('/api/files/:id', authenticateUser, async (req, res) => {
+    const fileId = req.params.id;
+    try {
+        const file = await File.findById(fileId);
+        if (!file) {
+            return res.status(404).json({ error: 'File not found in DB.' });
+        }
+        const userId = req.user._id;
+        if (file.userId.toString() !== userId) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        await File.findByIdAndDelete(fileId);
+        res.json({ message: 'File deleted successfully' });
+        // remove uploads from server uploads folder.
+        fs.unlink(file.path, (err) => {
+            if (err)
+                console.error('Error deleting file from fs:', err);
+        });
+        // remove folder if empty.
+        const userFolder = path.dirname(file.path);
+        fs.readdir(userFolder, (err, files) => {
+            if (!err && files.length === 0) {
+                fs.rmdir(userFolder, (rmErr) => {
+                    if (rmErr)
+                        console.error('Error removing empty folder:', rmErr);
+                });
+            }
+        });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to delete file' });
     }
 });
 app.listen(port, () => {
