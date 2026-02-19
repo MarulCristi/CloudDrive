@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     Box, 
     Button, 
@@ -9,9 +10,13 @@ import {
     Alert,
     CircularProgress,
     Paper,
-    IconButton
+    IconButton,
+    TextField
 } from '@mui/material';
 import { CloudUpload, Delete } from '@mui/icons-material';
+import Check from '@mui/icons-material/Check';
+import Close from '@mui/icons-material/Close';
+import Edit from '@mui/icons-material/Edit';
 
 interface FileData {
     _id: string;
@@ -28,6 +33,12 @@ function FileManager() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [editingNameId, setEditingNameId] = useState<string | null>(null);
+    const [newName, setNewName] = useState('');
+    const [fileExtension, setFileExtension] = useState('');
+    
+    const navigate = useNavigate();
+
 
     // Fetch user's files on component mount
     useEffect(() => {
@@ -140,6 +151,36 @@ function FileManager() {
         }
     }
 
+    const handleRename = async (fileId: string, name: string) => {
+        setError('');
+        setSuccess('');
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/files/${fileId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ newName: name })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            setFiles(files.map(f => f._id === fileId ? data.file : f));
+            setSuccess('File renamed successfully')
+            setEditingNameId(null);
+            setNewName('');
+            setFileExtension('');
+        } else {
+            const data = await response.json();
+            setError(data.error || 'Failed to rename file');
+        }
+        } catch (err) {
+        setError('Network error during rename')
+        }
+    };
+
     const formatFileSize = (bytes: number) => {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -150,8 +191,16 @@ function FileManager() {
         return new Date(dateString).toLocaleString();
     };
 
+    const splitFileName = (fullName: string) => {
+        const lastDot = fullName.lastIndexOf('.');
+        return {
+            base: fullName.substring(0, lastDot),
+            ext: fullName.substring(lastDot), // includes the dot: ".pdf"
+        };
+    };
+
     return (
-        <Box sx={{ maxWidth: 800, margin: '80px auto 20px', p: 3 }}>
+        <Box sx={{ width: '100%', maxWidth: 1200, margin: '80px auto 20px', p: 3 }}>
             <Typography variant="h4" sx={{ mb: 3, textAlign: 'center' }}>
                 My Cloud Drive
             </Typography>
@@ -198,7 +247,7 @@ function FileManager() {
             </Paper>
 
             {/* File List Section */}
-            <Paper sx={{ p: 3 }}>
+            <Paper sx={{p: 3, width: '100%' }} >
                 <Typography variant="h6" sx={{ mb: 2 }}>
                     Your Files
                 </Typography>
@@ -217,20 +266,60 @@ function FileManager() {
                             <ListItem 
                                 key={file._id}
                                 secondaryAction={
-                                <IconButton edge="end" onClick={() => handleDelete(file._id)}>
-                                    <Delete />
-                                </IconButton>
+                                    <>
+                                    {editingNameId === file._id ? (
+                                        <>
+                                            <IconButton edge="end" onClick={() => handleRename(file._id, newName + fileExtension)}>
+                                                <Check />
+                                            </IconButton>
+                                            <IconButton edge="end" onClick={() => { setEditingNameId(null); setNewName(''); }}>
+                                                <Close />
+                                            </IconButton>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconButton edge="end" onClick={() => { 
+                                                setEditingNameId(file._id);
+                                                const { base, ext } = splitFileName(file.originalName);
+
+                                                setNewName(base);
+                                                setFileExtension(ext) }}>
+                                                <Edit />
+                                            </IconButton>
+                                            <IconButton edge="end" onClick={() => handleDelete(file._id)}>
+                                                <Delete />
+                                            </IconButton>
+                                        </>
+                                    )}
+                                </>
                                 }
+                    
                                 sx={{ 
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',
-                                    '&:last-child': { borderBottom: 'none' }
+                                    '&:last-child': { borderBottom: 'none' },
+                                    pr: 12
                                 }}
                             >
-                                <ListItemText
-                                    primary={file.originalName}
-                                    secondary={`${formatFileSize(file.size)} • ${formatDate(file.uploadDate)}`}
-                                />
+                                {editingNameId === file._id ? (
+                                    <TextField
+                                        fullWidth
+                                        value={newName}
+                                        onChange={(e) => setNewName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleRename(file._id, newName);
+                                            if (e.key === 'Escape') { setEditingNameId(null); setNewName(''); }
+                                        }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <ListItemText
+                                        onClick={() => navigate(`/edit/${file._id}`)}
+                                        sx={{ cursor: 'pointer' }}
+                                        primary={file.originalName}
+                                        secondary={`${formatFileSize(file.size)} • ${formatDate(file.uploadDate)}`}
+                                    />
+                                )}
                             </ListItem>
                         ))}
                     </List>

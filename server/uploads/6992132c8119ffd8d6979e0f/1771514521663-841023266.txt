@@ -1,0 +1,494 @@
+{
+  "time": 1771514578341,
+  "blocks": [
+    {
+      "id": "lU5kkjEnCr",
+      "type": "paragraph",
+      "data": {
+        "text": "<a></a>Project work"
+      }
+    },
+    {
+      "id": "kCBh9qXgNC",
+      "type": "paragraph",
+      "data": {
+        "text": "Last update 18.12.2025"
+      }
+    },
+    {
+      "id": "wLTb4nHaOb",
+      "type": "paragraph",
+      "data": {
+        "text": "The DL for the project is 1.3.2026."
+      }
+    },
+    {
+      "id": "EUiN-Mmku6",
+      "type": "paragraph",
+      "data": {
+        "text": "If you submit before 22nd of February you will get 1 bonus point."
+      }
+    },
+    {
+      "id": "1JlFHTvZY4",
+      "type": "header",
+      "data": {
+        "text": "Introduction",
+        "level": 2
+      }
+    },
+    {
+      "id": "ySmiIJSohq",
+      "type": "paragraph",
+      "data": {
+        "text": "Your task is to implement a system that lets users register, login and create text documents into a “cloud drive”. The user can have as many documents she wishes in her drive and she can also edit and remove her documents. In essence this is a similar system to, for example, Google Drive or OneDrive. Non-authenticated users cannot see anything – links to documents can be shared so that a non-authenticated user can see the file, not edit it. Data has to be saved to a database and usage of content management systems (CMS, e.g. WordPress or Drupal) is not allowed. Documentation has to be written. These basic features give 25 points from the project."
+      }
+    },
+    {
+      "id": "7JLCD0E6nW",
+      "type": "paragraph",
+      "data": {
+        "text": "Besides the basic features you can implement as many additional features as you wish to gather more points and thus higher grades from the course. The maximum number of points one can get is 50."
+      }
+    },
+    {
+      "id": "cN4gKSv3Yw",
+      "type": "paragraph",
+      "data": {
+        "text": "The project is individual work and it could have views something like these (note that these images show features that are not required to pass the project work):"
+      }
+    },
+    {
+      "id": "80AWMsS2sx",
+      "type": "paragraph",
+      "data": {
+        "text": ""
+      }
+    },
+    {
+      "id": "hL944QUZAC",
+      "type": "header",
+      "data": {
+        "text": "Mandatory requirements",
+        "level": 2
+      }
+    },
+    {
+      "id": "y4vrsXnPsf",
+      "type": "list",
+      "data": {
+        "style": "unordered",
+        "meta": {},
+        "items": [
+          {
+            "content": "Implementation of backend with Node.js<ul><li data-empty=\"false\">You can of course use Express, Meteor or any other additional framework</li><li data-empty=\"false\">Java, PHP, Perl, Python, Ruby or other language solutions are <b>not allowed</b> in this course</li><li data-empty=\"false\">Write the UI in English, which is the language that is guaranteed to be understood by everyone. Of course if you are doing UI translation, then you can have multiple languages.</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "You can of course use Express, Meteor or any other additional framework",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Java, PHP, Perl, Python, Ruby or other language solutions are <b>not allowed</b> in this course",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Write the UI in English, which is the language that is guaranteed to be understood by everyone. Of course if you are doing UI translation, then you can have multiple languages.",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Utilization of database<ul><li data-empty=\"false\">MongoDB, MariaDB or any other you see fit</li><li data-empty=\"false\">All the data needs to be stored in a database</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "MongoDB, MariaDB or any other you see fit",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "All the data needs to be stored in a database",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Authentication<ul><li data-empty=\"false\">Users have to have an option to register and login</li><li data-empty=\"false\">You can use JWT or session based authorization</li><li data-empty=\"false\">Only authenticated users can see, add or remove files</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Users have to have an option to register and login",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "You can use JWT or session based authorization",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Only authenticated users can see, add or remove files",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Features<ul><li>Authenticated users can:<ul><li data-empty=\"false\">Add/remove/rename/edit documents to/from/on their own drive</li><li>The only required document type is text document<ul><li data-empty=\"false\">No formatting tools is required</li><li data-empty=\"false\">No simultaneous editing is required</li></ul></li><li data-empty=\"false\">Give editing permission to some existing users</li><li data-empty=\"false\">Give view permission to any user via link</li><li data-empty=\"false\">Two users cannot edit the same document at the same time. An informative message is given if the document is edited by another user. If the user is editing and closes the tab, she should have a way to get back to editing.</li><li data-empty=\"false\">Logout</li></ul></li><li>Non-authenticated users can register and login<ul><li data-empty=\"false\">Also if the document is set visible for non-authenticated user, then a links is enough to see the document on read-only mode</li></ul></li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Authenticated users can:<ul><li data-empty=\"false\">Add/remove/rename/edit documents to/from/on their own drive</li><li>The only required document type is text document<ul><li data-empty=\"false\">No formatting tools is required</li><li data-empty=\"false\">No simultaneous editing is required</li></ul></li><li data-empty=\"false\">Give editing permission to some existing users</li><li data-empty=\"false\">Give view permission to any user via link</li><li data-empty=\"false\">Two users cannot edit the same document at the same time. An informative message is given if the document is edited by another user. If the user is editing and closes the tab, she should have a way to get back to editing.</li><li data-empty=\"false\">Logout</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Add/remove/rename/edit documents to/from/on their own drive",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "The only required document type is text document<ul><li data-empty=\"false\">No formatting tools is required</li><li data-empty=\"false\">No simultaneous editing is required</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "No formatting tools is required",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "No simultaneous editing is required",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Give editing permission to some existing users",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Give view permission to any user via link",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Two users cannot edit the same document at the same time. An informative message is given if the document is edited by another user. If the user is editing and closes the tab, she should have a way to get back to editing.",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Logout",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Non-authenticated users can register and login<ul><li data-empty=\"false\">Also if the document is set visible for non-authenticated user, then a links is enough to see the document on read-only mode</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Also if the document is set visible for non-authenticated user, then a links is enough to see the document on read-only mode",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Responsive design<ul><li>The app needs to be usable with mobile devices and desktop browsers<ul><li data-empty=\"false\">Use of Materialize, Tailwind or Bootstrap is recommended</li></ul></li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "The app needs to be usable with mobile devices and desktop browsers<ul><li data-empty=\"false\">Use of Materialize, Tailwind or Bootstrap is recommended</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Use of Materialize, Tailwind or Bootstrap is recommended",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Documentation<ul><li data-empty=\"false\">There needs to be documentation describing the technology choices, installation guidelines and user manual</li><li>Also list the features you have implemented and the number of points you are aiming at<ul><li data-empty=\"false\">E.g. have a table of features you have implemented and how many points you want from them, take the next Table as a reference</li></ul></li><li><b data-empty=\"false\">The documentation MUST also include declaration of AI usage:</b><ul><li data-empty=\"false\">1) Name all AI systems that were used in the development of the contents of this document, and for each</li><li data-empty=\"false\">2) How and where they were used (illustrations, proofreading, getting ideas for text, to generate diagrams etc.) or</li><li data-empty=\"false\">3) Clearly state that no AI assistance or tools were used in this assignment.</li><li data-empty=\"false\">This Declaration is a mandatory part of the submission and leaving it out means that the work is incomplete and should not be graded. Declaring that no AI was used in the development of the document, but getting a high number in TurnitIn AI check is also a valid grounds for failing the work just by itself.</li></ul></li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "There needs to be documentation describing the technology choices, installation guidelines and user manual",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "Also list the features you have implemented and the number of points you are aiming at<ul><li data-empty=\"false\">E.g. have a table of features you have implemented and how many points you want from them, take the next Table as a reference</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "E.g. have a table of features you have implemented and how many points you want from them, take the next Table as a reference",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "<b data-empty=\"false\">The documentation MUST also include declaration of AI usage:</b><ul><li data-empty=\"false\">1) Name all AI systems that were used in the development of the contents of this document, and for each</li><li data-empty=\"false\">2) How and where they were used (illustrations, proofreading, getting ideas for text, to generate diagrams etc.) or</li><li data-empty=\"false\">3) Clearly state that no AI assistance or tools were used in this assignment.</li><li data-empty=\"false\">This Declaration is a mandatory part of the submission and leaving it out means that the work is incomplete and should not be graded. Declaring that no AI was used in the development of the document, but getting a high number in TurnitIn AI check is also a valid grounds for failing the work just by itself.</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "1) Name all AI systems that were used in the development of the contents of this document, and for each",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "2) How and where they were used (illustrations, proofreading, getting ideas for text, to generate diagrams etc.) or",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "3) Clearly state that no AI assistance or tools were used in this assignment.",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "This Declaration is a mandatory part of the submission and leaving it out means that the work is incomplete and should not be graded. Declaring that no AI was used in the development of the document, but getting a high number in TurnitIn AI check is also a valid grounds for failing the work just by itself.",
+            "meta": {},
+            "items": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "JqdXiorXeA",
+      "type": "header",
+      "data": {
+        "text": "Possible features",
+        "level": 2
+      }
+    },
+    {
+      "id": "lqCyPnneej",
+      "type": "table",
+      "data": {
+        "withHeadings": true,
+        "stretched": false,
+        "content": [
+          [
+            "Feature",
+            "Max points",
+            "Points Deserved"
+          ],
+          [
+            "Basic features (as stated in the previous chapter) with well written documentation",
+            "25",
+            ""
+          ],
+          [
+            "The application does not work",
+            "-100",
+            ""
+          ],
+          [
+            "No documentation",
+            "-100",
+            ""
+          ],
+          [
+            "If some parts are missing (such as no database or authentication does not work) points are reduced",
+            "0 – -25",
+            ""
+          ],
+          [
+            "If TypeScript is not used or it is used badly (like continuous use of “any type”)",
+            "0 – -10",
+            ""
+          ],
+          [
+            "Utilization of a frontside framework, such as React, but you can also use Angular, Vue or some other",
+            "3",
+            ""
+          ],
+          [
+            "The document editor includes wysiwyg editor of some sort (e.g. https://quilljs.com/, https://editorjs.io/, https://draftjs.org/)",
+            "2",
+            ""
+          ],
+          [
+            "Document can be download as PDF",
+            "3",
+            ""
+          ],
+          [
+            "The drive shows besides the name of the document also the creation and last updated timestamp",
+            "1",
+            ""
+          ],
+          [
+            "User is able to sort the documents in drive based on the name, creation/last edited  timestamp",
+            "1",
+            ""
+          ],
+          [
+            "Users are able to select a profile picture for themselves, the image is stored in the server",
+            "2",
+            ""
+          ],
+          [
+            "Users are able to comment parts of the document",
+            "5",
+            ""
+          ],
+          [
+            "In addition to text documents users are also able to create spreadsheets (very simple implementation is enough, only SUM()-function needs to be implemented in addition to cell manipulation)",
+            "6",
+            ""
+          ],
+          [
+            "In addition to text documents users are also able to create presentation slides (slides do need to have only headers and bullet point sections)",
+            "3",
+            ""
+          ],
+          [
+            "Different documents can be put to folders in the drive, user as an option to move files in folder hierarchy",
+            "4",
+            ""
+          ],
+          [
+            "The application has dark and bright modes",
+            "1",
+            ""
+          ],
+          [
+            "Documents are moved first into recycle bin and user can then clean the trashes when she sees fit",
+            "2",
+            ""
+          ],
+          [
+            "User has an option to clone existing document",
+            "1",
+            ""
+          ],
+          [
+            "User can upload documents (it is enough to allow only images) to her drive",
+            "2",
+            ""
+          ],
+          [
+            "Translation of the whole UI in two or more languages",
+            "2",
+            ""
+          ],
+          [
+            "Multiple users can work with the same document at the same time without blocking or crashing each others work",
+            "8",
+            ""
+          ],
+          [
+            "Create (unit) tests and automate some testing for example with https://www.cypress.io/ (at least 10 cases have to be implemented)",
+            "4",
+            ""
+          ],
+          [
+            "Add search functionality of some sort",
+            "2",
+            ""
+          ],
+          [
+            "Add pagination to the document listing",
+            "2",
+            ""
+          ],
+          [
+            "Inappropriate content, including hate speech related memes and other trash",
+            "-100",
+            ""
+          ],
+          [
+            "Code is not written and commented in English",
+            "-10",
+            ""
+          ],
+          [
+            "Code is not commented at all",
+            "-10",
+            ""
+          ],
+          [
+            "Code is not commented properly",
+            "-5",
+            ""
+          ],
+          [
+            "The project is a mess i.e. code is not divided into front and back folders and such",
+            "0 – -10",
+            ""
+          ],
+          [
+            " You can implement whatever you want your project to have – although it has to be somehow relevant to the theme.",
+            "n",
+            ""
+          ]
+        ]
+      }
+    },
+    {
+      "id": "R7Wh3zGXiH",
+      "type": "header",
+      "data": {
+        "text": "Notes",
+        "level": 2
+      }
+    },
+    {
+      "id": "RDz2DDYz-g",
+      "type": "list",
+      "data": {
+        "style": "unordered",
+        "meta": {},
+        "items": [
+          {
+            "content": "Front and backend do not need to be under the same project/port/whatever, but they can be different implementations<ul><li data-empty=\"false\">If more than 60k ports are used, your project will not be graded</li></ul>",
+            "meta": {},
+            "items": []
+          },
+          {
+            "content": "If more than 60k ports are used, your project will not be graded",
+            "meta": {},
+            "items": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "fuAGZIQifc",
+      "type": "header",
+      "data": {
+        "text": "Submitting",
+        "level": 2
+      }
+    },
+    {
+      "id": "BUPfM2sAOI",
+      "type": "paragraph",
+      "data": {
+        "text": "Submit your code to CodeGrade via link in Moodle."
+      }
+    },
+    {
+      "id": "0DKH8hAHd2",
+      "type": "header",
+      "data": {
+        "text": "Plagiarism",
+        "level": 2
+      }
+    },
+    {
+      "id": "BEcj0byE9g",
+      "type": "paragraph",
+      "data": {
+        "text": "All the projects will be checked for plagiarism and all the incidents will be reported to the LUT misconduct. By submitting someone else’s code without any mention of it you are doing a misconduct."
+      }
+    }
+  ],
+  "version": "2.31.3"
+}

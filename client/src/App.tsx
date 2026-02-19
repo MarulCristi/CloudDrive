@@ -8,7 +8,7 @@ import LoginComponent from './components/LoginComponent';
 import ProtectedRoute from './components/Protected';
 import RegisterComponent from './components/RegisterComponent';
 import FileManager from './components/FileManager';
-
+import DocumentEditor from './components/DocumentEditor';
 
 function App() {
 
@@ -48,6 +48,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <FileManager />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/edit/:id"
+              element={
+                <ProtectedRoute>
+                  <DocumentEditor />
                 </ProtectedRoute>
               }
             />
