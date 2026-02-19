@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import Header from '@editorjs/header';
-import Paragraph from '@editorjs/paragraph';
 import List from '@editorjs/list';
 import { Box, Button, Typography, Alert, CircularProgress } from '@mui/material';
 import Table from '@editorjs/table';
@@ -141,9 +140,32 @@ const DocumentEditor: React.FC = () => {
   if (loading) return <CircularProgress />;
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '900px', margin: '80px auto 20px', padding: '20px' }}>
+    <Box 
+    sx={{
+        width: '100%',
+        maxWidth: '100%',
+        padding: '20px',
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: '4px',
+        minHeight: '500px',
+
+        '& .ce-block__content': {
+            maxWidth: '100% !important',
+        },
+
+        '& .ce-toolbar__content': {
+            maxWidth: '100% !important',
+        },
+
+        '& .codex-editor': {
+            maxWidth: '100% !important',
+        },
+
+        overflowX: 'auto',
+    }}>
       <Box sx={{ marginBottom: '20px' }}>
-        <Typography variant="h4" sx={{ marginBottom: '5px' }}>
+        <Typography variant="h4" sx={{ marginBottom: '10px', marginTop: '25px' }}>
           {fileName}
         </Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -191,6 +213,19 @@ const DocumentEditor: React.FC = () => {
                     textAlign: 'left',
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
+                },
+                '& ul': {
+                    textAlign: 'left',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    whiteSpace: 'normal',
+                    paddingLeft: '20px',
+                },
+                '& li': {
+                    textAlign: 'left',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    whiteSpace: 'normal',
                 },
 
                 // hide EditorJS add/remove/settings controls (+ / -)
