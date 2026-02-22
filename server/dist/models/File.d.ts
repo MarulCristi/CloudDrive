@@ -6,6 +6,13 @@ interface IFile extends Document {
     path: string;
     size: number;
     uploadDate: Date;
+    permissions: Array<{
+        _id?: mongoose.Types.ObjectId;
+        userId?: mongoose.Types.ObjectId;
+        permission: 'edit' | 'view';
+        sharedLink?: string;
+        createdAt: Date;
+    }>;
 }
 declare const FileModel: mongoose.Model<IFile, {}, {}, {}, mongoose.Document<unknown, {}, IFile, {}, mongoose.DefaultSchemaOptions> & IFile & Required<{
     _id: mongoose.Types.ObjectId;

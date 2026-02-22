@@ -10,13 +10,11 @@ import {
     Alert,
     CircularProgress,
     Paper,
-    IconButton,
-    TextField
+    TextField,
+    Chip,
+    IconButton
 } from '@mui/material';
-import { CloudUpload, Delete } from '@mui/icons-material';
-import Check from '@mui/icons-material/Check';
-import Close from '@mui/icons-material/Close';
-import Edit from '@mui/icons-material/Edit';
+import { Check, Close, CloudUpload, Delete, Edit } from '@mui/icons-material';
 
 interface FileData {
     _id: string;
@@ -24,6 +22,7 @@ interface FileData {
     originalName: string;
     size: number;
     uploadDate: string;
+    role?: 'owner' | 'editor';
 }
 
 function FileManager() {
@@ -262,6 +261,7 @@ function FileManager() {
                     </Typography>
                 ) : (
                     <List>
+
                         {files.map((file) => (
                             <ListItem 
                                 key={file._id}
@@ -278,22 +278,25 @@ function FileManager() {
                                         </>
                                     ) : (
                                         <>
-                                            <IconButton edge="end" onClick={() => { 
-                                                setEditingNameId(file._id);
-                                                const { base, ext } = splitFileName(file.originalName);
-
-                                                setNewName(base);
-                                                setFileExtension(ext) }}>
-                                                <Edit />
-                                            </IconButton>
-                                            <IconButton edge="end" onClick={() => handleDelete(file._id)}>
-                                                <Delete />
-                                            </IconButton>
+                                            {file.role === 'owner' && (
+                                                <>
+                                                    <IconButton edge="end" onClick={() => { 
+                                                        setEditingNameId(file._id);
+                                                        const { base, ext } = splitFileName(file.originalName);
+                                                        setNewName(base);
+                                                        setFileExtension(ext);
+                                                    }}>
+                                                        <Edit />
+                                                    </IconButton>
+                                                    <IconButton edge="end" onClick={() => handleDelete(file._id)}>
+                                                        <Delete />
+                                                    </IconButton>
+                                                </>
+                                            )}
                                         </>
                                     )}
-                                </>
+                                    </>
                                 }
-                    
                                 sx={{ 
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',
@@ -307,7 +310,7 @@ function FileManager() {
                                         value={newName}
                                         onChange={(e) => setNewName(e.target.value)}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') handleRename(file._id, newName);
+                                            if (e.key === 'Enter') handleRename(file._id, newName + fileExtension);
                                             if (e.key === 'Escape') { setEditingNameId(null); setNewName(''); }
                                         }}
                                         autoFocus
@@ -316,7 +319,17 @@ function FileManager() {
                                     <ListItemText
                                         onClick={() => navigate(`/edit/${file._id}`)}
                                         sx={{ cursor: 'pointer' }}
-                                        primary={file.originalName}
+                                        primary={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                {file.originalName}
+                                                {file.role === 'editor' && (
+                                                    <Chip label="Editor" size="small" color="primary" />
+                                                )}
+                                                {file.role === 'owner' && (
+                                                    <Chip label="Owner" size="small" color="success" />
+                                                )}
+                                            </Box>
+                                        }
                                         secondary={`${formatFileSize(file.size)} • ${formatDate(file.uploadDate)}`}
                                     />
                                 )}

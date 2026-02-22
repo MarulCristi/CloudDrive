@@ -43,6 +43,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginComponent />} />
             <Route path="/register" element={<RegisterComponent />} />
+            <Route path="/share/:token" element={<DocumentEditor />} />
             <Route
               path="/"
               element={

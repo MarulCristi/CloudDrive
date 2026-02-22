@@ -5,7 +5,13 @@ const FileSchema = new Schema({
     originalName: { type: String, required: true },
     path: { type: String, required: true }, // where it's saved on the server
     size: { type: Number, required: true },
-    uploadDate: { type: Date, default: Date.now }
+    uploadDate: { type: Date, default: Date.now },
+    permissions: [{
+            userId: { type: Schema.Types.ObjectId, ref: 'User' },
+            permission: { type: String, enum: ['edit', 'view'], required: true },
+            sharedLink: { type: String, unique: true, sparse: true },
+            createdAt: { type: Date, default: Date.now }
+        }]
 });
 const FileModel = mongoose.model('File', FileSchema);
 export { FileModel as File };

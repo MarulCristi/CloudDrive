@@ -320,20 +320,6 @@ app.post('/api/files/upload', authenticateUser, upload.single('file'), async (re
         res.status(500).json({ error: 'Failed to upload file' });
     }
 });
-app.get('/api/files', authenticateUser, async (req, res) => {
-    try {
-        const user = req.user;
-        if (!user || !user._id) {
-            return res.status(401).json({ error: 'User not authenticated' });
-        }
-        const files = await File.find({ userId: user._id }).select('-__v'); // This excludes __v from the MongoDB.
-        res.status(200).json({ files });
-    }
-    catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Failed to get any files.' });
-    }
-});
 app.post('/api/auth/register', registerValidation, handleValidation, async (req, res) => {
     try {
         const { email, password, username, isAdmin } = req.body;
@@ -453,13 +439,15 @@ app.get('/api/files/:id/content', authenticateUser, async (req, res) => {
         if (!file)
             return res.status(404).json({ error: 'File not found' });
         const userId = req.user._id;
-        if (file.userId.toString() !== userId) {
+        const isOwner = file.userId.toString() === userId;
+        const userPermission = file.permissions.find(p => p.userId?.toString() === userId);
+        if (!isOwner && !userPermission) {
             return res.status(403).json({ error: 'Unauthorized' });
         }
         const fileExtension = file.originalName.split('.').pop()?.toLowerCase();
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
         if (imageExtensions.includes(fileExtension || '')) {
-            return res.status(200).json({ isImage: true, filename: file.originalName });
+            return res.status(200).json({ isImage: true, filename: file.originalName, canEdit: isOwner || userPermission?.permission === 'edit' });
         }
         const rawContent = fs.readFileSync(file.path, 'utf8');
         let content;
@@ -472,7 +460,7 @@ app.get('/api/files/:id/content', authenticateUser, async (req, res) => {
         catch {
             content = { blocks: [{ type: 'paragraph', data: { text: rawContent } }] };
         }
-        res.status(200).json({ filename: file.originalName, content: content, isImage: false });
+        res.status(200).json({ filename: file.originalName, content: content, isImage: false, canEdit: isOwner || userPermission?.permission === 'edit' });
     }
     catch (error) {
         console.log('PDF parsing error:', error);
@@ -490,8 +478,11 @@ app.put('/api/files/:id/content', authenticateUser, async (req, res) => {
         if (!file)
             return res.status(404).json({ error: 'File not found' });
         const userId = req.user._id;
-        if (file.userId.toString() !== userId) {
-            return res.status(403).json({ error: 'Unauthorized' });
+        const isOwner = file.userId.toString() === userId;
+        const userPermission = file.permissions.find(p => p.userId?.toString() === userId);
+        const canEdit = isOwner || userPermission?.permission === 'edit';
+        if (!canEdit) {
+            return res.status(403).json({ error: 'You do not have edit permission' });
         }
         // Save as properly formatted JSON
         fs.writeFileSync(file.path, JSON.stringify(content, null, 2), 'utf8');
@@ -502,6 +493,171 @@ app.put('/api/files/:id/content', authenticateUser, async (req, res) => {
     catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to save content' });
+    }
+});
+app.post('/api/files/:id/share/edit', authenticateUser, async (req, res) => {
+    const { userId } = req.body;
+    try {
+        const file = await File.findById(req.params.id);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.userId.toString() !== req.user._id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const existingPermission = file.permissions.find(p => p.userId?.toString() === userId && p.permission === 'edit');
+        if (existingPermission) {
+            return res.status(400).json({ error: 'User already has edit permission' });
+        }
+        file.permissions.push({
+            userId: new mongoose.Types.ObjectId(userId),
+            permission: 'edit',
+            createdAt: new Date()
+        });
+        await file.save();
+        res.json({ message: 'Edit permission granted', file });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to grant permission' });
+    }
+});
+app.post('/api/files/:id/share/view-link', authenticateUser, async (req, res) => {
+    try {
+        const file = await File.findById(req.params.id);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.userId.toString() !== req.user._id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const shareToken = jwt.sign({ fileId: file._id, permission: 'view' }, process.env.SECRET, { expiresIn: '30d' });
+        const existingLink = file.permissions.find(p => p.sharedLink && !p.userId);
+        if (existingLink) {
+            existingLink.sharedLink = shareToken;
+        }
+        else {
+            file.permissions.push({
+                permission: 'view',
+                sharedLink: shareToken,
+                createdAt: new Date()
+            });
+        }
+        await file.save();
+        const shareUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/share/${shareToken}`;
+        res.json({ message: 'View link created', shareUrl, shareToken });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create share link' });
+    }
+});
+app.get('/api/files/:id/permissions', authenticateUser, async (req, res) => {
+    try {
+        const file = await File.findById(req.params.id).populate('permissions.userId', 'username email');
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.userId.toString() !== req.user._id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        res.json({ permissions: file.permissions });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch permissions' });
+    }
+});
+app.delete('/api/files/:id/permissions/:permissionId', authenticateUser, async (req, res) => {
+    try {
+        const file = await File.findById(req.params.id);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.userId.toString() !== req.user._id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        file.permissions = file.permissions.filter(p => p._id?.toString() !== req.params.permissionId);
+        await file.save();
+        res.json({ message: 'Permission removed' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to remove permission' });
+    }
+});
+app.get('/api/users/search', authenticateUser, async (req, res) => {
+    const query = req.query.query;
+    if (!query)
+        return res.status(400).json({ error: 'Query required' });
+    try {
+        const user = await User.findOne({
+            $or: [
+                { email: query },
+                { username: query }
+            ]
+        }).select('_id username email');
+        if (!user)
+            return res.status(404).json({ error: 'User not found' });
+        res.json({ user });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to search user' });
+    }
+});
+app.get('/api/files/shared/:token', async (req, res) => {
+    const { token } = req.params;
+    if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: 'Invalid token' });
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.SECRET);
+        if (!decoded || typeof decoded === 'string' || !decoded.fileId || decoded.permission !== 'view') {
+            return res.status(403).json({ error: 'Invalid share link' });
+        }
+        const fileId = decoded.fileId;
+        const file = await File.findById(fileId);
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const rawContent = fs.readFileSync(file.path, 'utf8');
+        let content;
+        try {
+            content = JSON.parse(rawContent);
+        }
+        catch {
+            content = { blocks: [{ type: 'paragraph', data: { text: rawContent } }] };
+        }
+        res.json({
+            filename: file.originalName,
+            content: content,
+            canEdit: false
+        });
+    }
+    catch (error) {
+        res.status(401).json({ error: 'Invalid or expired share link' });
+    }
+});
+app.get('/api/files', authenticateUser, async (req, res) => {
+    try {
+        const user = req.user;
+        if (!user || !user._id) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+        // Get files owned by user
+        const ownedFiles = await File.find({ userId: user._id }).select('filename originalName size uploadDate');
+        // Get files shared with user (where they have edit permission) - exclude ones they own
+        const sharedFiles = await File.find({
+            'permissions.userId': user._id,
+            'permissions.permission': 'edit',
+            userId: { $ne: user._id } // Exclude files owned by this user
+        }).select('filename originalName size uploadDate');
+        const allFiles = [
+            ...ownedFiles.map(f => ({ ...f.toObject(), role: 'owner' })),
+            ...sharedFiles.map(f => ({ ...f.toObject(), role: 'editor' }))
+        ];
+        res.status(200).json({ files: allFiles });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to get any files.' });
     }
 });
 app.listen(port, () => {
