@@ -13,6 +13,9 @@ interface IFile extends Document {
         sharedLink?: string;
         createdAt: Date;
     }>;
+    isLocked: boolean;
+    lockedBy?: mongoose.Types.ObjectId | undefined;
+    lockedAt?: Date | undefined;
 }
 declare const FileModel: mongoose.Model<IFile, {}, {}, {}, mongoose.Document<unknown, {}, IFile, {}, mongoose.DefaultSchemaOptions> & IFile & Required<{
     _id: mongoose.Types.ObjectId;

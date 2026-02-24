@@ -1,36 +1,36 @@
 {
-  "time": 1771514578341,
+  "time": 1771942477187,
   "blocks": [
     {
-      "id": "lU5kkjEnCr",
+      "id": "SXnxY3NvwU",
       "type": "paragraph",
       "data": {
         "text": "<a></a>Project work"
       }
     },
     {
-      "id": "kCBh9qXgNC",
+      "id": "SuIEaCtyJB",
       "type": "paragraph",
       "data": {
-        "text": "Last update 18.12.2025"
+        "text": "Last update 24.02.2026"
       }
     },
     {
-      "id": "wLTb4nHaOb",
+      "id": "hXrgyafmqU",
       "type": "paragraph",
       "data": {
-        "text": "The DL for the project is 1.3.2026."
+        "text": "The DL for the project is 2.3.2026."
       }
     },
     {
-      "id": "EUiN-Mmku6",
+      "id": "H3vrpWXJs-",
       "type": "paragraph",
       "data": {
-        "text": "If you submit before 22nd of February you will get 1 bonus point."
+        "text": "If you submit before 23nd of February you will get 1 bonus point."
       }
     },
     {
-      "id": "1JlFHTvZY4",
+      "id": "wu1xC_L1IQ",
       "type": "header",
       "data": {
         "text": "Introduction",
@@ -38,35 +38,42 @@
       }
     },
     {
-      "id": "ySmiIJSohq",
+      "id": "_tzqIlAWrl",
       "type": "paragraph",
       "data": {
         "text": "Your task is to implement a system that lets users register, login and create text documents into a “cloud drive”. The user can have as many documents she wishes in her drive and she can also edit and remove her documents. In essence this is a similar system to, for example, Google Drive or OneDrive. Non-authenticated users cannot see anything – links to documents can be shared so that a non-authenticated user can see the file, not edit it. Data has to be saved to a database and usage of content management systems (CMS, e.g. WordPress or Drupal) is not allowed. Documentation has to be written. These basic features give 25 points from the project."
       }
     },
     {
-      "id": "7JLCD0E6nW",
+      "id": "LDmMPyMjXS",
+      "type": "paragraph",
+      "data": {
+        "text": "Test. Hello. Can you see this? No?"
+      }
+    },
+    {
+      "id": "n_GUNSJn-Z",
       "type": "paragraph",
       "data": {
         "text": "Besides the basic features you can implement as many additional features as you wish to gather more points and thus higher grades from the course. The maximum number of points one can get is 50."
       }
     },
     {
-      "id": "cN4gKSv3Yw",
+      "id": "LkghFBPlEc",
       "type": "paragraph",
       "data": {
         "text": "The project is individual work and it could have views something like these (note that these images show features that are not required to pass the project work):"
       }
     },
     {
-      "id": "80AWMsS2sx",
+      "id": "6RqjQDeGFm",
       "type": "paragraph",
       "data": {
         "text": ""
       }
     },
     {
-      "id": "hL944QUZAC",
+      "id": "SzUVfrB22R",
       "type": "header",
       "data": {
         "text": "Mandatory requirements",
@@ -74,7 +81,7 @@
       }
     },
     {
-      "id": "y4vrsXnPsf",
+      "id": "rsXqkJ71Li",
       "type": "list",
       "data": {
         "style": "unordered",
@@ -259,7 +266,7 @@
       }
     },
     {
-      "id": "JqdXiorXeA",
+      "id": "hwYgiquk3d",
       "type": "header",
       "data": {
         "text": "Possible features",
@@ -267,7 +274,7 @@
       }
     },
     {
-      "id": "lqCyPnneej",
+      "id": "FrYK7pzYOK",
       "type": "table",
       "data": {
         "withHeadings": true,
@@ -275,164 +282,133 @@
         "content": [
           [
             "Feature",
-            "Max points",
-            "Points Deserved"
+            "Max points"
           ],
           [
             "Basic features (as stated in the previous chapter) with well written documentation",
-            "25",
-            ""
+            "25"
           ],
           [
             "The application does not work",
-            "-100",
-            ""
+            "-100"
           ],
           [
             "No documentation",
-            "-100",
-            ""
+            "-100"
           ],
           [
             "If some parts are missing (such as no database or authentication does not work) points are reduced",
-            "0 – -25",
-            ""
+            "0 – -25"
           ],
           [
             "If TypeScript is not used or it is used badly (like continuous use of “any type”)",
-            "0 – -10",
-            ""
+            "0 – -10"
           ],
           [
             "Utilization of a frontside framework, such as React, but you can also use Angular, Vue or some other",
-            "3",
-            ""
+            "3"
           ],
           [
             "The document editor includes wysiwyg editor of some sort (e.g. https://quilljs.com/, https://editorjs.io/, https://draftjs.org/)",
-            "2",
-            ""
+            "2"
           ],
           [
             "Document can be download as PDF",
-            "3",
-            ""
+            "3"
           ],
           [
             "The drive shows besides the name of the document also the creation and last updated timestamp",
-            "1",
-            ""
+            "1"
           ],
           [
             "User is able to sort the documents in drive based on the name, creation/last edited  timestamp",
-            "1",
-            ""
+            "1"
           ],
           [
             "Users are able to select a profile picture for themselves, the image is stored in the server",
-            "2",
-            ""
+            "2"
           ],
           [
             "Users are able to comment parts of the document",
-            "5",
-            ""
+            "5"
           ],
           [
             "In addition to text documents users are also able to create spreadsheets (very simple implementation is enough, only SUM()-function needs to be implemented in addition to cell manipulation)",
-            "6",
-            ""
+            "6"
           ],
           [
             "In addition to text documents users are also able to create presentation slides (slides do need to have only headers and bullet point sections)",
-            "3",
-            ""
+            "3"
           ],
           [
             "Different documents can be put to folders in the drive, user as an option to move files in folder hierarchy",
-            "4",
-            ""
+            "4"
           ],
           [
             "The application has dark and bright modes",
-            "1",
-            ""
+            "1"
           ],
           [
             "Documents are moved first into recycle bin and user can then clean the trashes when she sees fit",
-            "2",
-            ""
+            "2"
           ],
           [
             "User has an option to clone existing document",
-            "1",
-            ""
+            "1"
           ],
           [
             "User can upload documents (it is enough to allow only images) to her drive",
-            "2",
-            ""
+            "2"
           ],
           [
             "Translation of the whole UI in two or more languages",
-            "2",
-            ""
+            "2"
           ],
           [
             "Multiple users can work with the same document at the same time without blocking or crashing each others work",
-            "8",
-            ""
+            "8"
           ],
           [
             "Create (unit) tests and automate some testing for example with https://www.cypress.io/ (at least 10 cases have to be implemented)",
-            "4",
-            ""
+            "4"
           ],
           [
             "Add search functionality of some sort",
-            "2",
-            ""
+            "2"
           ],
           [
             "Add pagination to the document listing",
-            "2",
-            ""
+            "2"
           ],
           [
             "Inappropriate content, including hate speech related memes and other trash",
-            "-100",
-            ""
+            "-100"
           ],
           [
             "Code is not written and commented in English",
-            "-10",
-            ""
+            "-10"
           ],
           [
             "Code is not commented at all",
-            "-10",
-            ""
+            "-10"
           ],
           [
             "Code is not commented properly",
-            "-5",
-            ""
+            "-5"
           ],
           [
             "The project is a mess i.e. code is not divided into front and back folders and such",
-            "0 – -10",
-            ""
+            "0 – -10"
           ],
           [
             " You can implement whatever you want your project to have – although it has to be somehow relevant to the theme.",
-            "n",
-            ""
+            "n"
           ]
         ]
       }
     },
     {
-      "id": "R7Wh3zGXiH",
+      "id": "F_LvL5kAmG",
       "type": "header",
       "data": {
         "text": "Notes",
@@ -440,7 +416,7 @@
       }
     },
     {
-      "id": "RDz2DDYz-g",
+      "id": "534XnsjhW2",
       "type": "list",
       "data": {
         "style": "unordered",
@@ -460,7 +436,7 @@
       }
     },
     {
-      "id": "fuAGZIQifc",
+      "id": "GHG842fZRA",
       "type": "header",
       "data": {
         "text": "Submitting",
@@ -468,14 +444,14 @@
       }
     },
     {
-      "id": "BUPfM2sAOI",
+      "id": "D59epiBGBC",
       "type": "paragraph",
       "data": {
         "text": "Submit your code to CodeGrade via link in Moodle."
       }
     },
     {
-      "id": "0DKH8hAHd2",
+      "id": "hiwazWPX2_",
       "type": "header",
       "data": {
         "text": "Plagiarism",
@@ -483,7 +459,7 @@
       }
     },
     {
-      "id": "BEcj0byE9g",
+      "id": "YTf6VdgSVM",
       "type": "paragraph",
       "data": {
         "text": "All the projects will be checked for plagiarism and all the incidents will be reported to the LUT misconduct. By submitting someone else’s code without any mention of it you are doing a misconduct."

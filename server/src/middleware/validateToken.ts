@@ -1,7 +1,7 @@
 import type {Request, Response, NextFunction} from "express"
 import jwt, {type JwtPayload} from "jsonwebtoken"
 
-interface CustomRequest extends Request {
+export interface CustomRequest extends Request {
     user?: JwtPayload & { _id?: string; username?: string; isAdmin?: boolean };
 }
 

@@ -13,7 +13,10 @@ interface IFile extends Document {
         permission: 'edit' | 'view',
         sharedLink?: string,
         createdAt: Date
-    }>
+    }>,
+    isLocked: boolean,
+    lockedBy?: mongoose.Types.ObjectId | undefined,
+    lockedAt?: Date | undefined
 }
 
 const FileSchema: Schema = new Schema({
@@ -28,7 +31,10 @@ const FileSchema: Schema = new Schema({
         permission: { type: String, enum: ['edit', 'view'], required: true },
         sharedLink: { type: String, unique: true, sparse: true },
         createdAt: { type: Date, default: Date.now }
-    }]
+    }],
+    isLocked: { type: Boolean, default: false },
+    lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lockedAt: { type: Date }
 });
 
 const FileModel = mongoose.model<IFile>('File', FileSchema);

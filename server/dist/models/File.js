@@ -11,7 +11,10 @@ const FileSchema = new Schema({
             permission: { type: String, enum: ['edit', 'view'], required: true },
             sharedLink: { type: String, unique: true, sparse: true },
             createdAt: { type: Date, default: Date.now }
-        }]
+        }],
+    isLocked: { type: Boolean, default: false },
+    lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lockedAt: { type: Date }
 });
 const FileModel = mongoose.model('File', FileSchema);
 export { FileModel as File };

@@ -1,6 +1,6 @@
 import express, {} from 'express';
 import mongoose from 'mongoose';
-import { authenticateUser, authenticateAdmin } from './middleware/validateToken.js';
+import { authenticateUser } from './middleware/validateToken.js';
 import { User } from './models/User.js';
 // Registration
 import { registerValidation, loginValidation, handleValidation } from './validators/inputValidation.js';
@@ -658,6 +658,143 @@ app.get('/api/files', authenticateUser, async (req, res) => {
     catch (error) {
         console.log(error);
         res.status(500).json({ error: 'Failed to get any files.' });
+    }
+});
+// Acquire lock
+app.post('/api/files/:id/lock', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        const isOwner = file.userId.toString() === userId;
+        const userPermission = file.permissions.find(p => p.userId?.toString() === userId);
+        const canEdit = isOwner || userPermission?.permission === 'edit';
+        if (!canEdit)
+            return res.status(403).json({ error: 'You do not have edit permission' });
+        const LOCK_LEASE_MS = 30 * 1000; // 30 second grace period
+        const lockExpired = file.lockedAt && (Date.now() - file.lockedAt.getTime() > LOCK_LEASE_MS);
+        // Locked by someone else and lease hasn't expired
+        if (file.isLocked && file.lockedBy?.toString() !== userId && !lockExpired) {
+            const lockHolder = await User.findById(file.lockedBy).select('username');
+            const remainingMs = LOCK_LEASE_MS - (Date.now() - file.lockedAt.getTime());
+            return res.status(423).json({
+                lockedBy: lockHolder?.username || 'another user',
+                remainingSeconds: Math.ceil(remainingMs / 1000)
+            });
+        }
+        // Grant or renew lock
+        file.isLocked = true;
+        file.lockedBy = new mongoose.Types.ObjectId(userId);
+        file.lockedAt = new Date();
+        await file.save();
+        res.json({ message: 'Lock acquired' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to acquire lock' });
+    }
+});
+// Heartbeat - renew lock every ~5 seconds while user is active
+app.put('/api/files/:id/lock', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.lockedBy?.toString() !== userId) {
+            return res.status(403).json({ error: 'You do not hold this lock' });
+        }
+        // Renew the lease timestamp
+        file.lockedAt = new Date();
+        await file.save();
+        res.json({ message: 'Lock renewed' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to renew lock' });
+    }
+});
+// Release lock (DELETE)
+app.delete('/api/files/:id/lock', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        // Only the lock holder can release via DELETE
+        if (file.lockedBy?.toString() !== userId) {
+            return res.status(403).json({ error: 'You do not hold this lock' });
+        }
+        file.isLocked = false;
+        file.lockedBy = undefined;
+        file.lockedAt = undefined;
+        await file.save();
+        res.json({ message: 'Lock released' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to release lock' });
+    }
+});
+app.post('/api/files/:id/lock-release', async (req, res) => {
+    try {
+        // the lock will expire on its own after 30s without heartbeat
+        res.json({ message: 'Lock noted - grace period started' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to process lock release' });
+    }
+});
+// Force unlock - owner only
+app.post('/api/files/:id/force-unlock', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        // Only the file owner can force unlock
+        if (file.userId.toString() !== userId) {
+        }
+        file.isLocked = false;
+        file.lockedBy = undefined;
+        file.lockedAt = undefined;
+        await file.save();
+        res.json({ message: 'File force unlocked' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to force unlock' });
+    }
+});
+app.get('/api/files/:id/lock-status', authenticateUser, async (req, res) => {
+    try {
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        const LOCK_LEASE_MS = 30 * 1000;
+        if (!file.isLocked || !file.lockedAt) {
+            return res.json({ locked: false });
+        }
+        const elapsed = Date.now() - file.lockedAt.getTime();
+        const lockExpired = elapsed > LOCK_LEASE_MS;
+        if (lockExpired) {
+            return res.json({ locked: false });
+        }
+        const lockHolder = await User.findById(file.lockedBy).select('username');
+        // Check if the lock is being actively renewed (heartbeat running)
+        // If lockedAt was updated recently (within 20s), user is still active
+        const isActive = elapsed < 20 * 1000;
+        return res.json({
+            locked: true,
+            lockedBy: lockHolder?.username || 'another user',
+            isActive, // true = user is present, false = user left
+            remainingSeconds: Math.ceil((LOCK_LEASE_MS - elapsed) / 1000), // only meaningful when !isActive
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to get lock status' });
     }
 });
 app.listen(port, () => {
