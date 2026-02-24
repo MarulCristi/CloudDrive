@@ -1,5 +1,5 @@
 {
-  "time": 1771942477187,
+  "time": 1771946086838,
   "blocks": [
     {
       "id": "SXnxY3NvwU",
@@ -26,7 +26,7 @@
       "id": "H3vrpWXJs-",
       "type": "paragraph",
       "data": {
-        "text": "If you submit before 23nd of February you will get 1 bonus point."
+        "text": "If you submit before 23nd of February you will get 1 bonus point. Really?"
       }
     },
     {
@@ -63,13 +63,6 @@
       "type": "paragraph",
       "data": {
         "text": "The project is individual work and it could have views something like these (note that these images show features that are not required to pass the project work):"
-      }
-    },
-    {
-      "id": "6RqjQDeGFm",
-      "type": "paragraph",
-      "data": {
-        "text": ""
       }
     },
     {

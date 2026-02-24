@@ -16,7 +16,8 @@ interface IFile extends Document {
     }>,
     isLocked: boolean,
     lockedBy?: mongoose.Types.ObjectId | undefined,
-    lockedAt?: Date | undefined
+    lockedAt?: Date | undefined,
+    forceUnlocked?: Boolean | undefined
 }
 
 const FileSchema: Schema = new Schema({
@@ -34,7 +35,8 @@ const FileSchema: Schema = new Schema({
     }],
     isLocked: { type: Boolean, default: false },
     lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-    lockedAt: { type: Date }
+    lockedAt: { type: Date },
+    forceUnlocked: { type: Boolean, default: false },
 });
 
 const FileModel = mongoose.model<IFile>('File', FileSchema);

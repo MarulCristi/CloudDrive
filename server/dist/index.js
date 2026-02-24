@@ -460,7 +460,7 @@ app.get('/api/files/:id/content', authenticateUser, async (req, res) => {
         catch {
             content = { blocks: [{ type: 'paragraph', data: { text: rawContent } }] };
         }
-        res.status(200).json({ filename: file.originalName, content: content, isImage: false, canEdit: isOwner || userPermission?.permission === 'edit' });
+        res.status(200).json({ filename: file.originalName, content: content, isImage: false, canEdit: isOwner || userPermission?.permission === 'edit', isOwner });
     }
     catch (error) {
         console.log('PDF parsing error:', error);
@@ -702,10 +702,14 @@ app.put('/api/files/:id/lock', authenticateUser, async (req, res) => {
         const file = await File.findById(req.params['id']);
         if (!file)
             return res.status(404).json({ error: 'File not found' });
+        if (file.forceUnlocked) {
+            file.forceUnlocked = false; // reset the flag
+            await file.save();
+            return res.status(403).json({ error: 'Force unlocked by owner' });
+        }
         if (file.lockedBy?.toString() !== userId) {
             return res.status(403).json({ error: 'You do not hold this lock' });
         }
-        // Renew the lease timestamp
         file.lockedAt = new Date();
         await file.save();
         res.json({ message: 'Lock renewed' });
@@ -756,15 +760,16 @@ app.post('/api/files/:id/force-unlock', authenticateUser, async (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         // Only the file owner can force unlock
         if (file.userId.toString() !== userId) {
+            return res.status(403).json({ error: 'Only the file owner can force unlock' });
         }
         file.isLocked = false;
         file.lockedBy = undefined;
         file.lockedAt = undefined;
+        file.forceUnlocked = true; // signal to the current editor's heartbeat
         await file.save();
         res.json({ message: 'File force unlocked' });
     }
     catch (error) {
-        console.error(error);
         res.status(500).json({ error: 'Failed to force unlock' });
     }
 });
@@ -784,8 +789,7 @@ app.get('/api/files/:id/lock-status', authenticateUser, async (req, res) => {
         }
         const lockHolder = await User.findById(file.lockedBy).select('username');
         // Check if the lock is being actively renewed (heartbeat running)
-        // If lockedAt was updated recently (within 20s), user is still active
-        const isActive = elapsed < 20 * 1000;
+        const isActive = elapsed < 7 * 1000;
         return res.json({
             locked: true,
             lockedBy: lockHolder?.username || 'another user',

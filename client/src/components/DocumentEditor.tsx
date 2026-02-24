@@ -28,6 +28,8 @@ const DocumentEditor: React.FC = () => {
   const [isLocked, setIsLocked] = useState(false);
   const [lockedBy, setLockedBy] = useState('');
   const [lockCountdown, setLockCountdown] = useState<number | null>(null); // null = user is active
+  const [isOwner, setIsOwner] = useState(false); // track if current user owns the file
+
   const lockAcquiredRef = useRef(false);
   const lastActivityRef = useRef<number>(Date.now());
   const inactivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -60,21 +62,29 @@ const DocumentEditor: React.FC = () => {
     return () => window.removeEventListener('beforeunload', releaseLockBeacon);
   }, []);
 
-  // Start heartbeat: renew lock every 5 seconds
+  // Heartbeat — renew lock AND check if owner force-unlocked us
   const startHeartbeat = () => {
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     heartbeatRef.current = setInterval(async () => {
       if (!lockAcquiredRef.current || !idRef.current || tokenRef.current) return;
       try {
         const authToken = localStorage.getItem('token');
-        await fetch(`/api/files/${idRef.current}/lock`, {
+        const res = await fetch(`/api/files/${idRef.current}/lock`, {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${authToken}` },
         });
+
+        if (res.status === 403) {
+          // Owner force-unlocked us - stop editing, refresh
+          lockAcquiredRef.current = false;
+          clearInterval(heartbeatRef.current!);
+          alert('The file owner has unlocked this document. Your session has ended.');
+          window.location.reload();
+        }
       } catch (err) {
         console.error('Heartbeat failed:', err);
       }
-    }, 5000); // every 5 seconds
+    }, 5000);
   };
 
   useEffect(() => {
@@ -91,6 +101,7 @@ const DocumentEditor: React.FC = () => {
           });
         }
 
+
         if (!response.ok) {
           setError('Failed to fetch file content');
           setLoading(false);
@@ -99,6 +110,8 @@ const DocumentEditor: React.FC = () => {
 
         const data = await response.json();
         setFileName(data.filename || 'Untitled Document');
+
+        setIsOwner(data.isOwner === true);
 
         const editAllowed = data.canEdit !== false && !token;
         setCanEdit(editAllowed);
@@ -320,7 +333,7 @@ const DocumentEditor: React.FC = () => {
           <Alert severity="warning" sx={{ mb: 2 }} icon={<Lock />}>
             {lockCountdown === null ? (
               // User is actively editing
-              <>This document is currently being edited by <strong>{lockedBy}</strong>. Wait for it to become available.</>
+              <>This document is currently being edited by <strong>{lockedBy}</strong>. Wait for them to finish for it to become available.</>
             ) : (
               // User has left, countdown running
               <><strong>{lockedBy}</strong> left the document. They have <strong>{lockCountdown}s</strong> to return before you can edit.</>
@@ -344,8 +357,17 @@ const DocumentEditor: React.FC = () => {
         {isLocked && canEdit && (
           <>
             <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back</Button>
-            <Button variant="contained" color="warning" onClick={handleForceUnlock} sx={{ mr: 1 }}>Force Unlock (Owner Only)</Button>
           </>
+        )}
+        {isLocked && isOwner && (
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleForceUnlock}
+            sx={{ mr: 1 }}
+          >
+            Force Unlock
+          </Button>
         )}
         {isViewOnly && <Button variant="outlined" onClick={() => navigate('/')}>Back to Files</Button>}
       </Box>
