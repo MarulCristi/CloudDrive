@@ -8,8 +8,9 @@ import Table from '@editorjs/table';
 import Quote from '@editorjs/quote';
 import Code from '@editorjs/code';
 import Delimiter from '@editorjs/delimiter';
-import { Share, Lock } from '@mui/icons-material';
+import { Share, Lock, Download } from '@mui/icons-material';
 import ShareDialog from './ShareModal';
+import jsPDF from 'jspdf';
 
 const DocumentEditor: React.FC = () => {
   const { id, token } = useParams<{ id?: string; token?: string }>();
@@ -275,6 +276,253 @@ const DocumentEditor: React.FC = () => {
     }, 1000); // poll every 1 second for responsive UI
   };
 
+  const handleDownloadPDF = async () => {
+    if (!editorRef.current) return;
+
+    try {
+      const savedData = await editorRef.current.save();
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const marginLeft = 50;
+      const marginRight = 50;
+      const marginTop = 50;
+      const marginBottom = 50;
+      const usableWidth = pageWidth - marginLeft - marginRight;
+      let y = marginTop;
+
+      const checkPageBreak = (needed: number) => {
+        if (y + needed > pageHeight - marginBottom) {
+          pdf.addPage();
+          y = marginTop;
+        }
+      };
+
+      const renderWrappedText = (
+        text: string,
+        x: number,
+        fontSize: number,
+        fontStyle: string = 'normal',
+        indent: number = 0
+      ) => {
+        // Strip basic HTML tags for plain text rendering
+        const plain = text
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&nbsp;/g, ' ');
+
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', fontStyle);
+        const maxWidth = usableWidth - indent;
+        const lines = pdf.splitTextToSize(plain, maxWidth);
+        const lineHeight = fontSize * 1.4;
+
+        for (const line of lines) {
+          checkPageBreak(lineHeight);
+          pdf.text(line, x + indent, y);
+          y += lineHeight;
+        }
+      };
+
+      const renderListItems = (
+        items: any[],
+        ordered: boolean,
+        depth: number = 0,
+        parentIndex: number[] = []
+      ) => {
+        const indent = depth * 25;
+        const bulletIndent = ordered ? 20 : 15;
+
+        items.forEach((item: any, index: number) => {
+          // EditorJS list items can be a string or { content: string, items: [] }
+          const text = typeof item === 'string' ? item : (item.content ?? '');
+          const children = typeof item === 'object' && Array.isArray(item.items) ? item.items : [];
+          const marker = ordered ? `${index + 1}.` : depth === 0 ? '•' : depth === 1 ? '◦' : '▪';
+
+          pdf.setFontSize(11);
+          pdf.setFont('helvetica', 'normal');
+          const lineHeight = 11 * 1.4;
+          checkPageBreak(lineHeight);
+
+          // Draw marker at indented position
+          const markerX = marginLeft + indent;
+          pdf.text(marker, markerX, y);
+
+          // Draw text with space after marker
+          const plain = text
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ');
+
+          const textX = markerX + bulletIndent;
+          const maxWidth = usableWidth - indent - bulletIndent;
+          const lines = pdf.splitTextToSize(plain, maxWidth);
+
+          for (let i = 0; i < lines.length; i++) {
+            if (i > 0) checkPageBreak(lineHeight);
+            pdf.text(lines[i], textX, y);
+            y += lineHeight;
+          }
+
+          // Render nested children with increased depth
+          if (children.length > 0) {
+            renderListItems(children, ordered, depth + 1, [...parentIndex, index + 1]);
+          }
+        });
+      };
+
+      for (const block of savedData.blocks) {
+        switch (block.type) {
+          case 'header': {
+            const sizes: Record<number, number> = { 1: 24, 2: 20, 3: 17, 4: 15, 5: 13, 6: 12 };
+            const fontSize = sizes[block.data.level] || 14;
+            y += 6; // extra space before heading
+            renderWrappedText(block.data.text, marginLeft, fontSize, 'bold');
+            y += 4; // extra space after heading
+            break;
+          }
+          case 'paragraph': {
+            renderWrappedText(block.data.text, marginLeft, 11);
+            y += 4;
+            break;
+          }
+          case 'list': {
+            const ordered = block.data.style === 'ordered';
+            renderListItems(block.data.items, ordered, 0);
+            y += 4;
+            break;
+          }
+          case 'quote': {
+            y += 4;
+            // Draw left border line
+            checkPageBreak(16);
+            const quoteStartY = y;
+            renderWrappedText(block.data.text, marginLeft + 15, 11, 'italic', 0);
+            // Draw vertical bar
+            pdf.setDrawColor(180, 180, 180);
+            pdf.setLineWidth(2);
+            pdf.line(marginLeft + 8, quoteStartY - 12, marginLeft + 8, y);
+            if (block.data.caption) {
+              renderWrappedText(`— ${block.data.caption}`, marginLeft + 15, 9, 'italic', 0);
+            }
+            y += 6;
+            break;
+          }
+          case 'code': {
+            y += 4;
+            // Light gray background
+            const codeLines = pdf.splitTextToSize(block.data.code, usableWidth - 20);
+            const codeLineHeight = 10 * 1.3;
+            const codeBlockHeight = codeLines.length * codeLineHeight + 16;
+            checkPageBreak(Math.min(codeBlockHeight, 60)); // at least check for a few lines
+
+            pdf.setFillColor(244, 244, 244);
+            pdf.setFont('courier', 'normal');
+            pdf.setFontSize(9);
+
+            for (const line of codeLines) {
+              checkPageBreak(codeLineHeight);
+              // Draw background strip for this line
+              pdf.setFillColor(244, 244, 244);
+              pdf.rect(marginLeft, y - 9, usableWidth, codeLineHeight, 'F');
+              pdf.text(line, marginLeft + 10, y);
+              y += codeLineHeight;
+            }
+            y += 6;
+            break;
+          }
+          case 'delimiter': {
+            checkPageBreak(20);
+            y += 8;
+            pdf.setDrawColor(200, 200, 200);
+            pdf.setLineWidth(1);
+            pdf.line(marginLeft + 40, y, pageWidth - marginRight - 40, y);
+            y += 14;
+            break;
+          }
+          case 'table': {
+            const rows: string[][] = block.data.content;
+            if (!rows || rows.length === 0) break;
+
+            const colCount = rows[0]!.length;
+            const colWidth = usableWidth / colCount;
+            const cellPadding = 6;
+            const tableFontSize = 9;
+
+            pdf.setFontSize(tableFontSize);
+            y += 4;
+
+            for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+              const row = rows[rowIdx]!;
+              const isHeader = block.data.withHeadings && rowIdx === 0;
+
+              // Calculate row height based on tallest cell
+              let maxLines = 1;
+              const cellLines: string[][] = row.map((cell: string) => {
+                const plain = cell.replace(/<[^>]+>/g, '');
+                const lines = pdf.splitTextToSize(plain, colWidth - cellPadding * 2);
+                maxLines = Math.max(maxLines, lines.length);
+                return lines;
+              });
+              const rowHeight = maxLines * tableFontSize * 1.3 + cellPadding * 2;
+
+              checkPageBreak(rowHeight);
+
+              // Draw cell borders and text
+              for (let colIdx = 0; colIdx < colCount; colIdx++) {
+                const cellX = marginLeft + colIdx * colWidth;
+
+                // Background for header
+                if (isHeader) {
+                  pdf.setFillColor(230, 230, 230);
+                  pdf.rect(cellX, y, colWidth, rowHeight, 'FD');
+                  pdf.setFont('helvetica', 'bold');
+                } else {
+                  pdf.setDrawColor(200, 200, 200);
+                  pdf.rect(cellX, y, colWidth, rowHeight, 'S');
+                  pdf.setFont('helvetica', 'normal');
+                }
+
+                pdf.setFontSize(tableFontSize);
+                const lines = cellLines[colIdx]!;
+                for (let li = 0; li < lines.length; li++) {
+                  pdf.text(
+                    lines[li],
+                    cellX + cellPadding,
+                    y + cellPadding + tableFontSize + li * tableFontSize * 1.3
+                  );
+                }
+              }
+              y += rowHeight;
+            }
+            y += 8;
+            break;
+          }
+          default:
+            break;
+        }
+      }
+
+      const safeName = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-z0-9_\- ]/gi, '_');
+      pdf.save(`${safeName}.pdf`);
+
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      setError('Failed to generate PDF');
+    }
+  };
+
   const updateActivity = () => { lastActivityRef.current = Date.now(); };
 
   // ...existing handleSave, handleForceUnlock unchanged...
@@ -344,7 +592,6 @@ const DocumentEditor: React.FC = () => {
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        {/* ...existing buttons unchanged... */}
         {canEdit && !isViewOnly && !isLocked && (
           <>
             <Button variant="contained" onClick={handleSave} disabled={saving || loading} sx={{ mr: 1 }}>
@@ -352,11 +599,13 @@ const DocumentEditor: React.FC = () => {
             </Button>
             <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back</Button>
             <Button variant="outlined" startIcon={<Share />} onClick={() => setShareDialogOpen(true)}>Share</Button>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
           </>
         )}
         {isLocked && canEdit && (
           <>
             <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back</Button>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
           </>
         )}
         {isLocked && isOwner && (
@@ -369,7 +618,12 @@ const DocumentEditor: React.FC = () => {
             Force Unlock
           </Button>
         )}
-        {isViewOnly && <Button variant="outlined" onClick={() => navigate('/')}>Back to Files</Button>}
+        {isViewOnly && (
+        <>
+          <Button variant="outlined" onClick={() => navigate('/')}>Back to Files</Button>
+          <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
+        </>
+        )}
       </Box>
 
       {loading ? (

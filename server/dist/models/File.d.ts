@@ -18,6 +18,8 @@ interface IFile extends Document {
     lockedBy?: mongoose.Types.ObjectId | undefined;
     lockedAt?: Date | undefined;
     forceUnlocked?: Boolean | undefined;
+    isDeleted: boolean;
+    deletedAt?: Date | undefined;
 }
 declare const FileModel: mongoose.Model<IFile, {}, {}, {}, mongoose.Document<unknown, {}, IFile, {}, mongoose.DefaultSchemaOptions> & IFile & Required<{
     _id: mongoose.Types.ObjectId;

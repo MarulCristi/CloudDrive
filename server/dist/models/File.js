@@ -17,6 +17,8 @@ const FileSchema = new Schema({
     lockedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     lockedAt: { type: Date },
     forceUnlocked: { type: Boolean, default: false },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }
 });
 const FileModel = mongoose.model('File', FileSchema);
 export { FileModel as File };

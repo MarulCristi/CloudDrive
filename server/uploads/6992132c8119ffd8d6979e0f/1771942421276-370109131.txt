@@ -1,5 +1,5 @@
 {
-  "time": 1771963587386,
+  "time": 1772017062693,
   "blocks": [
     {
       "id": "SXnxY3NvwU",
@@ -316,7 +316,7 @@
           [
             "Document can be download as PDF",
             "3",
-            ""
+            "3"
           ],
           [
             "The drive shows besides the name of the document also the creation and last updated timestamp",
@@ -361,12 +361,12 @@
           [
             "Documents are moved first into recycle bin and user can then clean the trashes when she sees fit",
             "2",
-            ""
+            "2"
           ],
           [
             "User has an option to clone existing document",
             "1",
-            ""
+            "1"
           ],
           [
             "User can upload documents (it is enough to allow only images) to her drive",

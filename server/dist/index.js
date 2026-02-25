@@ -71,16 +71,32 @@ const upload = multer({
 function htmlToEditorBlocks(html) {
     const $ = cheerio.load(html);
     const blocks = [];
+    const getFormattedText = (el) => {
+        let text = $(el).html() || '';
+        text = text.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
+        text = text.replace(/<em>/g, '<i>').replace(/<\/em>/g, '</i>');
+        return text.trim();
+    };
+    // Recursively convert a <ul> or <ol> element into EditorJS nested list items
+    const parseListItems = ($list) => {
+        return $list.children('li').map((_, li) => {
+            const $li = $(li);
+            // Grab inline HTML of the li (excluding nested ul/ol)
+            const $clone = $li.clone();
+            $clone.find('ul, ol').remove();
+            let text = $clone.html() || '';
+            text = text.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
+            text = text.replace(/<em>/g, '<i>').replace(/<\/em>/g, '</i>');
+            text = text.trim();
+            // Check for nested lists
+            const $nestedList = $li.children('ul, ol').first();
+            const nestedItems = $nestedList.length > 0 ? parseListItems($nestedList) : [];
+            return { content: text, items: nestedItems };
+        }).get();
+    };
     $('body').children().each((_, element) => {
         const el = $(element);
         const tag = element.tagName.toLowerCase();
-        // Helper to get HTML with formatting preserved
-        const getFormattedText = () => {
-            let text = el.html() || '';
-            // Replace <strong> with <b> for EditorJS compatibility
-            text = text.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
-            return text.trim();
-        };
         const getText = () => el.text().trim();
         if (tag === 'h1') {
             blocks.push({ type: 'header', data: { text: getText(), level: 1 } });
@@ -101,23 +117,13 @@ function htmlToEditorBlocks(html) {
             blocks.push({ type: 'header', data: { text: getText(), level: 6 } });
         }
         else if (tag === 'ul') {
-            const items = el.find('li').map((_, li) => {
-                const $li = $(li);
-                let text = $li.html() || '';
-                text = text.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
-                return text.trim();
-            }).get();
+            const items = parseListItems(el);
             if (items.length > 0) {
                 blocks.push({ type: 'list', data: { style: 'unordered', items } });
             }
         }
         else if (tag === 'ol') {
-            const items = el.find('li').map((_, li) => {
-                const $li = $(li);
-                let text = $li.html() || '';
-                text = text.replace(/<strong>/g, '<b>').replace(/<\/strong>/g, '</b>');
-                return text.trim();
-            }).get();
+            const items = parseListItems(el);
             if (items.length > 0) {
                 blocks.push({ type: 'list', data: { style: 'ordered', items } });
             }
@@ -125,7 +131,6 @@ function htmlToEditorBlocks(html) {
         else if (tag === 'table') {
             const rows = [];
             let withHeadings = false;
-            // Check if table has thead
             const thead = el.find('thead');
             if (thead.length > 0) {
                 withHeadings = true;
@@ -135,9 +140,7 @@ function htmlToEditorBlocks(html) {
                         rows.push(row);
                 });
             }
-            // Process table body
             el.find('tbody tr, tr').each((_, tr) => {
-                // Skip if already processed in thead
                 if ($(tr).closest('thead').length > 0)
                     return;
                 const row = $(tr).find('td, th').map((_, cell) => $(cell).text().trim()).get();
@@ -145,44 +148,23 @@ function htmlToEditorBlocks(html) {
                     rows.push(row);
             });
             if (rows.length > 0) {
-                blocks.push({
-                    type: 'table',
-                    data: {
-                        withHeadings,
-                        content: rows
-                    }
-                });
+                blocks.push({ type: 'table', data: { withHeadings, content: rows } });
             }
         }
         else if (tag === 'blockquote') {
-            const text = getFormattedText();
+            const text = getFormattedText(element);
             if (text) {
-                blocks.push({
-                    type: 'quote',
-                    data: {
-                        text,
-                        caption: '',
-                        alignment: 'left'
-                    }
-                });
+                blocks.push({ type: 'quote', data: { text, caption: '', alignment: 'left' } });
             }
         }
         else if (tag === 'pre' || tag === 'code') {
             const code = el.text().trim();
             if (code) {
-                blocks.push({
-                    type: 'code',
-                    data: {
-                        code
-                    }
-                });
+                blocks.push({ type: 'code', data: { code } });
             }
         }
         else if (tag === 'hr') {
-            blocks.push({
-                type: 'delimiter',
-                data: {}
-            });
+            blocks.push({ type: 'delimiter', data: {} });
         }
         else if (tag === 'img') {
             const src = el.attr('src');
@@ -190,28 +172,33 @@ function htmlToEditorBlocks(html) {
             if (src) {
                 blocks.push({
                     type: 'image',
-                    data: {
-                        file: { url: src },
-                        caption: alt,
-                        withBorder: false,
-                        stretched: false,
-                        withBackground: false
-                    }
+                    data: { file: { url: src }, caption: alt, withBorder: false, stretched: false, withBackground: false }
                 });
             }
         }
         else if (tag === 'p') {
-            const text = getFormattedText();
+            const text = getFormattedText(element);
             if (text) {
                 blocks.push({ type: 'paragraph', data: { text } });
             }
         }
         else if (tag === 'div') {
-            // Handle divs as paragraphs if they contain text
-            const text = getFormattedText();
-            if (text) {
-                blocks.push({ type: 'paragraph', data: { text } });
-            }
+            // Recurse into divs — mammoth sometimes wraps lists inside divs
+            $(element).children().each((_, child) => {
+                const childTag = child.tagName?.toLowerCase();
+                if (childTag === 'ul' || childTag === 'ol') {
+                    const style = childTag === 'ol' ? 'ordered' : 'unordered';
+                    const items = parseListItems($(child));
+                    if (items.length > 0) {
+                        blocks.push({ type: 'list', data: { style, items } });
+                    }
+                }
+                else {
+                    const text = getFormattedText(child);
+                    if (text)
+                        blocks.push({ type: 'paragraph', data: { text } });
+                }
+            });
         }
     });
     return blocks.length > 0 ? blocks : [{ type: 'paragraph', data: { text: '' } }];
@@ -437,38 +424,148 @@ app.post('/api/auth/login', loginValidation, handleValidation, async (req, res) 
         res.status(500).json({ error: "Internal Server Error when logging in." });
     }
 });
-app.delete('/api/files/:id', authenticateUser, async (req, res) => {
-    const fileId = req.params.id;
+app.get('/api/files/trash/list', authenticateUser, async (req, res) => {
     try {
-        const file = await File.findById(fileId);
-        if (!file) {
-            return res.status(404).json({ error: 'File not found in DB.' });
-        }
-        const userId = req.user._id;
-        if (file.userId.toString() !== userId) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
-        await File.findByIdAndDelete(fileId);
-        res.json({ message: 'File deleted successfully' });
-        // remove uploads from server uploads folder.
-        fs.unlink(file.path, (err) => {
-            if (err)
-                console.error('Error deleting file from fs:', err);
-        });
-        // remove folder if empty.
-        const userFolder = path.dirname(file.path);
-        fs.readdir(userFolder, (err, files) => {
-            if (!err && files.length === 0) {
-                fs.rmdir(userFolder, (rmErr) => {
-                    if (rmErr)
-                        console.error('Error removing empty folder:', rmErr);
-                });
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const trashedFiles = await File.find({ userId, isDeleted: true })
+            .sort({ deletedAt: -1 });
+        res.json(trashedFiles);
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+app.delete('/api/files/trash/empty', authenticateUser, async (req, res) => {
+    try {
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const trashedFiles = await File.find({ userId, isDeleted: true });
+        const fs = await import('fs');
+        for (const file of trashedFiles) {
+            if (fs.existsSync(file.path)) {
+                fs.unlinkSync(file.path);
             }
+        }
+        await File.deleteMany({ userId, isDeleted: true });
+        res.json({ message: 'Trash emptied', count: trashedFiles.length });
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+app.delete('/api/files/:id', authenticateUser, async (req, res) => {
+    try {
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ message: 'File not found' });
+        // Only owner can delete
+        if (file.userId.toString() !== userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        // Soft delete - move to trash
+        file.isDeleted = true;
+        file.deletedAt = new Date();
+        await file.save();
+        res.json({ message: 'File moved to recycle bin' });
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+app.delete('/api/files/:id/permanent', authenticateUser, async (req, res) => {
+    try {
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ message: 'File not found' });
+        if (file.userId.toString() !== userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        // Delete file from disk
+        const fs = await import('fs');
+        if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+        }
+        await File.findByIdAndDelete(req.params['id']);
+        res.json({ message: 'File permanently deleted' });
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+// Restore file from trash
+app.put('/api/files/:id/restore', authenticateUser, async (req, res) => {
+    try {
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ message: 'File not found' });
+        if (file.userId.toString() !== userId) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        file.isDeleted = false;
+        file.deletedAt = undefined;
+        await file.save();
+        res.json({ message: 'File restored' });
+    }
+    catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+app.post('/api/files/:id/clone', authenticateUser, async (req, res) => {
+    try {
+        const token = req.header('authorization')?.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.SECRET);
+        const userId = decoded._id;
+        const original = await File.findById(req.params['id']);
+        if (!original)
+            return res.status(404).json({ message: 'File not found' });
+        // Check access: owner or has edit permission
+        const isOwner = original.userId.toString() === userId;
+        const hasAccess = original.permissions.some(p => p.userId?.toString() === userId);
+        if (!isOwner && !hasAccess) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        // Copy the file on disk
+        const fs = await import('fs');
+        const path = await import('path');
+        const ext = path.extname(original.originalName);
+        const baseName = path.basename(original.originalName, ext);
+        const newOriginalName = `${baseName} (Copy)${ext}`;
+        const newFilename = `${Date.now()}-${newOriginalName.replace(/\s+/g, '_')}`;
+        const newPath = path.join(path.dirname(original.path), newFilename);
+        fs.copyFileSync(original.path, newPath);
+        const cloned = new File({
+            userId: userId,
+            filename: newFilename,
+            originalName: newOriginalName,
+            path: newPath,
+            size: original.size,
+            createdAt: new Date(),
+            uploadDate: new Date(),
+            permissions: [],
+            isLocked: false,
+            isDeleted: false
+        });
+        await cloned.save();
+        res.status(201).json({
+            message: 'Document cloned',
+            file: cloned
         });
     }
     catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Failed to delete file' });
+        console.error('Clone error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 app.put('/api/files/:id', authenticateUser, async (req, res) => {
@@ -710,13 +807,14 @@ app.get('/api/files', authenticateUser, async (req, res) => {
         if (!user || !user._id) {
             return res.status(401).json({ error: 'User not authenticated' });
         }
-        // Get files owned by user
-        const ownedFiles = await File.find({ userId: user._id }).select('filename originalName size createdAt uploadDate');
-        // Get files shared with user (where they have edit permission) - exclude ones they own
+        // Get files owned by user (NOT deleted)
+        const ownedFiles = await File.find({ userId: user._id, isDeleted: { $ne: true } }).select('filename originalName size createdAt uploadDate');
+        // Get files shared with user (where they have edit permission) - exclude ones they own, exclude deleted
         const sharedFiles = await File.find({
             'permissions.userId': user._id,
             'permissions.permission': 'edit',
-            userId: { $ne: user._id } // Exclude files owned by this user
+            userId: { $ne: user._id },
+            isDeleted: { $ne: true }
         }).select('filename originalName size createdAt uploadDate');
         const allFiles = [
             ...ownedFiles.map(f => ({ ...f.toObject(), role: 'owner' })),
