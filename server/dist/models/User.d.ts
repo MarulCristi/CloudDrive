@@ -4,6 +4,8 @@ interface IUser extends Document {
     password: string;
     username: string;
     isAdmin?: boolean;
+    profilePicture?: string;
+    createdAt: Date;
 }
 declare const User: mongoose.Model<IUser>;
 export { User };

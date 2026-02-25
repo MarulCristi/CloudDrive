@@ -5,6 +5,7 @@ const FileSchema = new Schema({
     originalName: { type: String, required: true },
     path: { type: String, required: true }, // where it's saved on the server
     size: { type: Number, required: true },
+    createdAt: { type: Date, default: Date.now },
     uploadDate: { type: Date, default: Date.now },
     permissions: [{
             userId: { type: Schema.Types.ObjectId, ref: 'User' },

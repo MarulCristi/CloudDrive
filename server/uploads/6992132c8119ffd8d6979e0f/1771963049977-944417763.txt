@@ -1,0 +1,140 @@
+{
+  "time": 1771963069215,
+  "blocks": [
+    {
+      "id": "8cGA59Xw8A",
+      "type": "paragraph",
+      "data": {
+        "text": "<b>CONSENT FORM­</b>"
+      }
+    },
+    {
+      "id": "DkkFcqpqkN",
+      "type": "paragraph",
+      "data": {
+        "text": "<b>User Interfaces and Usability course / LUT University</b>"
+      }
+    },
+    {
+      "id": "Ske3FYxdBS",
+      "type": "paragraph",
+      "data": {
+        "text": "In connection with the course <b>CT30A2803 User Interfaces and Usability </b>at LUT University, we [Group x] would like to do one interview with you, and take, photographs, audio and video recordings. This documentation will be used in our research work to support our course project on designing user interfaces."
+      }
+    },
+    {
+      "id": "oUl3oD_fXz",
+      "type": "paragraph",
+      "data": {
+        "text": "Your identity will at no point be divulged outside of our group. All collected data will be anonymized. Reports referring to the interview will not contain identifiable data, references to your identity, nor information allowing identification (faces will be blurred on photographs and video clips, and quotes will be anonymized). All photographs and recordings will be stored in such a way that no third party can access them. Any keys used for identifying anonymized data will not be stored in the same repositories as the data."
+      }
+    },
+    {
+      "id": "NYYaR0IgrK",
+      "type": "paragraph",
+      "data": {
+        "text": "Participation in our research and consent to the use of the resulting documentation for design and research purposes is completely voluntary and your choice."
+      }
+    },
+    {
+      "id": "3dY3jNTMBr",
+      "type": "paragraph",
+      "data": {
+        "text": "INTERVIEWEE TO FILL BELOW"
+      }
+    },
+    {
+      "id": "3MRM0ZBbJV",
+      "type": "paragraph",
+      "data": {
+        "text": "I have read the above and give my consent for this interview to be documented with the use of the below methods, and in accordance to the practices ensuring anonymity stated above:"
+      }
+    },
+    {
+      "id": "lIx0e8eDcs",
+      "type": "paragraph",
+      "data": {
+        "text": "[V] Photographs"
+      }
+    },
+    {
+      "id": "GAnN0UWcLj",
+      "type": "paragraph",
+      "data": {
+        "text": "[V ] Audio recordings"
+      }
+    },
+    {
+      "id": "fN06cWwM4O",
+      "type": "paragraph",
+      "data": {
+        "text": "[ V] Video recordings"
+      }
+    },
+    {
+      "id": "jLveRrhNcv",
+      "type": "paragraph",
+      "data": {
+        "text": "Place: B242"
+      }
+    },
+    {
+      "id": "nks1Ifz8YS",
+      "type": "paragraph",
+      "data": {
+        "text": "Time: February 20th 17:30"
+      }
+    },
+    {
+      "type": "image",
+      "data": {
+        "file": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGgAAAAuCAMAAADzw6ziAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURQAAAAAAAKVnuc8AAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAXNJREFUWEftlEGWwjAMQ8v9L81rnDiynCAzlG4GLUoiq/pNeXA8PtdxHAd7STohdXI0SQa07gIZR/bIgFKD3ATql9eSAaH+4jRJzYUmRwF3fknMMHHKtLErovavgaB32w7SiZ3e43wAevjv59sgR9wFKnF+INLJqHEk6PX8OpBouRMkEq5aaqf/AOJ9s9qVXKlYvQQlp32gVxAXLWpjM22rsp4CyP0iaFETPeKOJ5l2HZQePzfTFjl/BqVTQqdvwfJlAeQRW8fi3kzbuLeFWzSY2/gSloF0pLC1xYzgwfHkI5mG6JIRtrZwK3bBKbYc32Zz7MqgYKEPE1tHO6Rs4dYShE4YzOOMzcqHR0CQJUZhf9IkT8JzA4lGW9CiHEM0CPeGBOT7yqOZ0DTnFMp+mEcbQLOhDyEOgkAejLGfD7JoDIWCsrBgtEAhfCk24Pvrco7/8U4HxLe9r17jr3BerqScwiZots/rMP6F9zWd4DoKid/UEzTtDuT9ZOl7AAAAAElFTkSuQmCC"
+        },
+        "caption": "",
+        "withBorder": false,
+        "stretched": false,
+        "withBackground": false
+      }
+    },
+    {
+      "type": "image",
+      "data": {
+        "file": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAdCAMAAAAenIXMAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAMUExURQAAAP7+/v///wAAAEXYAtMAAAAEdFJOU////wBAKqn0AAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAeklEQVQ4T93TSwrAIAwE0BDvf+dizHc0SJftLErIPCjUSqMPM7PNVKucyRz2brEXTp6tU8Y63JwNF+fD352z77j4GZFlF4uz00kdwI0Nc1X6ystwCcbOOyrLzsn9wOUevUe4xsxXrO+MTYkIOw8sLVqne3nuLeV8ezYeyXYLb5AjE4kAAAAASUVORK5CYII="
+        },
+        "caption": "",
+        "withBorder": false,
+        "stretched": false,
+        "withBackground": false
+      }
+    },
+    {
+      "id": "_f9Ux7Dbfi",
+      "type": "paragraph",
+      "data": {
+        "text": "_____________________________________\tCristian Taietu"
+      }
+    },
+    {
+      "type": "image",
+      "data": {
+        "file": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABcAAAAbCAMAAACgNuTpAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURQAAAAAAAKVnuc8AAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAFdJREFUKFO90sESABAIBFD9/0+b2iZazMRBB6O3DQeaWDUvdAqJR4hlKXPfUWKAdJwpmPM+btXzp7mSx+7OM39z4ldnPjtk63iboiNh1nu3QXjm+CfE0gERbgHEx4KXpQAAAABJRU5ErkJggg=="
+        },
+        "caption": "",
+        "withBorder": false,
+        "stretched": false,
+        "withBackground": false
+      }
+    },
+    {
+      "id": "OAtb9zKz2Y",
+      "type": "paragraph",
+      "data": {
+        "text": "Signature\t\t\t\t\t\tName<br>I Agree!"
+      }
+    }
+  ],
+  "version": "2.31.3"
+}

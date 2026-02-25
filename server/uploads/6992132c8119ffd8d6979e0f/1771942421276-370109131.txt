@@ -1,5 +1,5 @@
 {
-  "time": 1771946086838,
+  "time": 1771963587386,
   "blocks": [
     {
       "id": "SXnxY3NvwU",
@@ -26,7 +26,7 @@
       "id": "H3vrpWXJs-",
       "type": "paragraph",
       "data": {
-        "text": "If you submit before 23nd of February you will get 1 bonus point. Really?"
+        "text": "If you submit before 23nd of February you will get 1 bonus point. Really? Hi, how are you??"
       }
     },
     {
@@ -275,127 +275,158 @@
         "content": [
           [
             "Feature",
-            "Max points"
+            "<i>Max points</i>",
+            ""
           ],
           [
             "Basic features (as stated in the previous chapter) with well written documentation",
+            "25",
             "25"
           ],
           [
             "The application does not work",
-            "-100"
+            "-100",
+            "0"
           ],
           [
             "No documentation",
-            "-100"
+            "-100",
+            "0"
           ],
           [
             "If some parts are missing (such as no database or authentication does not work) points are reduced",
-            "0 – -25"
+            "0 – -25",
+            "0"
           ],
           [
             "If TypeScript is not used or it is used badly (like continuous use of “any type”)",
-            "0 – -10"
+            "0 – -10",
+            "0"
           ],
           [
             "Utilization of a frontside framework, such as React, but you can also use Angular, Vue or some other",
+            "3",
             "3"
           ],
           [
             "The document editor includes wysiwyg editor of some sort (e.g. https://quilljs.com/, https://editorjs.io/, https://draftjs.org/)",
+            "2",
             "2"
           ],
           [
             "Document can be download as PDF",
-            "3"
+            "3",
+            ""
           ],
           [
             "The drive shows besides the name of the document also the creation and last updated timestamp",
+            "1",
             "1"
           ],
           [
             "User is able to sort the documents in drive based on the name, creation/last edited  timestamp",
+            "1",
             "1"
           ],
           [
             "Users are able to select a profile picture for themselves, the image is stored in the server",
+            "2",
             "2"
           ],
           [
             "Users are able to comment parts of the document",
-            "5"
+            "5",
+            ""
           ],
           [
             "In addition to text documents users are also able to create spreadsheets (very simple implementation is enough, only SUM()-function needs to be implemented in addition to cell manipulation)",
-            "6"
+            "6",
+            "0"
           ],
           [
             "In addition to text documents users are also able to create presentation slides (slides do need to have only headers and bullet point sections)",
-            "3"
+            "3",
+            "0"
           ],
           [
             "Different documents can be put to folders in the drive, user as an option to move files in folder hierarchy",
-            "4"
+            "4",
+            ""
           ],
           [
             "The application has dark and bright modes",
+            "1",
             "1"
           ],
           [
             "Documents are moved first into recycle bin and user can then clean the trashes when she sees fit",
-            "2"
+            "2",
+            ""
           ],
           [
             "User has an option to clone existing document",
-            "1"
+            "1",
+            ""
           ],
           [
             "User can upload documents (it is enough to allow only images) to her drive",
-            "2"
+            "2",
+            ""
           ],
           [
             "Translation of the whole UI in two or more languages",
-            "2"
+            "2",
+            ""
           ],
           [
             "Multiple users can work with the same document at the same time without blocking or crashing each others work",
-            "8"
+            "8",
+            "0"
           ],
           [
             "Create (unit) tests and automate some testing for example with https://www.cypress.io/ (at least 10 cases have to be implemented)",
-            "4"
+            "4",
+            ""
           ],
           [
             "Add search functionality of some sort",
-            "2"
+            "2",
+            ""
           ],
           [
             "Add pagination to the document listing",
-            "2"
+            "2",
+            ""
           ],
           [
             "Inappropriate content, including hate speech related memes and other trash",
-            "-100"
+            "-100",
+            "0"
           ],
           [
             "Code is not written and commented in English",
-            "-10"
+            "-10",
+            "0"
           ],
           [
             "Code is not commented at all",
-            "-10"
+            "-10",
+            "0"
           ],
           [
             "Code is not commented properly",
-            "-5"
+            "-5",
+            "0"
           ],
           [
             "The project is a mess i.e. code is not divided into front and back folders and such",
-            "0 – -10"
+            "0 – -10",
+            "0"
           ],
           [
             " You can implement whatever you want your project to have – although it has to be somehow relevant to the theme.",
-            "n"
+            "n",
+            ""
           ]
         ]
       }

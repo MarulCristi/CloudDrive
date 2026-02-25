@@ -5,13 +5,17 @@ interface IUser extends Document {
     password: string
     username: string
     isAdmin?: boolean
+    profilePicture?: string;
+    createdAt: Date;
 }
 
 const UserSchema: Schema = new Schema({
     email: {type: String, required: true, unique: true},
     password: {type: String, required: true},
     username: {type: String, required: false},
-    isAdmin: {type: Boolean, default: false}
+    isAdmin: {type: Boolean, default: false},
+    profilePicture: { type: String },
+    createdAt: { type: Date, default: Date.now }
 })
 
 const User: mongoose.Model<IUser> = mongoose.model<IUser>("User", UserSchema)

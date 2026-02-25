@@ -5,6 +5,7 @@ interface IFile extends Document {
     originalName: string;
     path: string;
     size: number;
+    createdAt: Date;
     uploadDate: Date;
     permissions: Array<{
         _id?: mongoose.Types.ObjectId;

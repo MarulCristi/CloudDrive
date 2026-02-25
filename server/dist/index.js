@@ -216,6 +216,75 @@ function htmlToEditorBlocks(html) {
     });
     return blocks.length > 0 ? blocks : [{ type: 'paragraph', data: { text: '' } }];
 }
+const profilePicStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadPath = path.join('uploads', 'profiles');
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        const userId = req.user._id;
+        cb(null, `${userId}${path.extname(file.originalname)}`);
+    }
+});
+const profilePicFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    }
+    else {
+        cb(new Error('Only image files are allowed!'));
+    }
+};
+const uploadProfilePic = multer({
+    storage: profilePicStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: profilePicFilter
+});
+app.use('/uploads/profiles', express.static(path.join(process.cwd(), 'uploads', 'profiles')));
+// Upload profile picture
+app.post('/api/users/profile-picture', authenticateUser, uploadProfilePic.single('profilePicture'), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file)
+            return res.status(400).json({ error: 'No file uploaded' });
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+        if (user?.profilePicture) {
+            const oldPath = path.join(process.cwd(), user.profilePicture);
+            if (fs.existsSync(oldPath)) {
+                fs.unlinkSync(oldPath);
+            }
+        }
+        // Store only the filename, not the full path
+        const filename = file.filename;
+        await User.findByIdAndUpdate(userId, { profilePicture: filename });
+        res.json({ message: 'Profile picture updated', profilePicture: `/uploads/profiles/${filename}` });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to upload profile picture' });
+    }
+});
+// Get current user profile
+app.get('/api/users/me', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId).select('username email profilePicture');
+        if (!user)
+            return res.status(404).json({ error: 'User not found' });
+        res.json({
+            username: user.username,
+            email: user.email,
+            // Build the full URL path from just the stored filename
+            profilePicture: user.profilePicture ? `/uploads/profiles/${user.profilePicture}` : null
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+});
 app.post('/api/files/upload', authenticateUser, upload.single('file'), async (req, res) => {
     try {
         const file = req.file;
@@ -642,13 +711,13 @@ app.get('/api/files', authenticateUser, async (req, res) => {
             return res.status(401).json({ error: 'User not authenticated' });
         }
         // Get files owned by user
-        const ownedFiles = await File.find({ userId: user._id }).select('filename originalName size uploadDate');
+        const ownedFiles = await File.find({ userId: user._id }).select('filename originalName size createdAt uploadDate');
         // Get files shared with user (where they have edit permission) - exclude ones they own
         const sharedFiles = await File.find({
             'permissions.userId': user._id,
             'permissions.permission': 'edit',
             userId: { $ne: user._id } // Exclude files owned by this user
-        }).select('filename originalName size uploadDate');
+        }).select('filename originalName size createdAt uploadDate');
         const allFiles = [
             ...ownedFiles.map(f => ({ ...f.toObject(), role: 'owner' })),
             ...sharedFiles.map(f => ({ ...f.toObject(), role: 'editor' }))

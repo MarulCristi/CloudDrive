@@ -3,7 +3,9 @@ const UserSchema = new Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     username: { type: String, required: false },
-    isAdmin: { type: Boolean, default: false }
+    isAdmin: { type: Boolean, default: false },
+    profilePicture: { type: String },
+    createdAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model("User", UserSchema);
 export { User };

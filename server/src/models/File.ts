@@ -6,6 +6,7 @@ interface IFile extends Document {
     originalName: string,
     path: string,
     size: number, // In bytes
+    createdAt: Date,
     uploadDate: Date,
     permissions: Array<{
         _id?: mongoose.Types.ObjectId,
@@ -26,6 +27,7 @@ const FileSchema: Schema = new Schema({
     originalName: { type: String, required: true },
     path: { type: String, required: true }, // where it's saved on the server
     size: { type: Number, required: true },
+    createdAt: { type: Date, default: Date.now },
     uploadDate: { type: Date, default: Date.now },
     permissions: [{
         userId: { type: Schema.Types.ObjectId, ref: 'User' },
