@@ -20,7 +20,11 @@ interface IFile extends Document {
     lockedAt?: Date | undefined,
     forceUnlocked?: Boolean | undefined,
     isDeleted: boolean,
-    deletedAt?: Date | undefined
+    deletedAt?: Date | undefined,
+    waitingQueue: Array<{
+        userId: mongoose.Types.ObjectId,
+        joinedAt: Date
+    }>
 }
 
 const FileSchema: Schema = new Schema({
@@ -42,7 +46,11 @@ const FileSchema: Schema = new Schema({
     lockedAt: { type: Date },
     forceUnlocked: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
-    deletedAt: { type: Date }
+    deletedAt: { type: Date },
+    waitingQueue: [{
+        userId: { type: Schema.Types.ObjectId, ref: 'User' },
+        joinedAt: { type: Date, default: Date.now }
+    }]
 });
 
 const FileModel = mongoose.model<IFile>('File', FileSchema);

@@ -1,5 +1,5 @@
 {
-  "time": 1772352273443,
+  "time": 1772018497289,
   "blocks": [
     {
       "id": "SXnxY3NvwU",
@@ -26,7 +26,7 @@
       "id": "H3vrpWXJs-",
       "type": "paragraph",
       "data": {
-        "text": "<code class=\"inline-code\">If you submit before 23nd of February you will get 1 bonus point. Really? Hi, how are you??</code>"
+        "text": "If you submit before 23nd of February you will get 1 bonus point. Really? Hi, how are you??"
       }
     },
     {
@@ -41,7 +41,7 @@
       "id": "_tzqIlAWrl",
       "type": "paragraph",
       "data": {
-        "text": "Your task is to implement a system that lets users register, login and create text documents into a “cloud drive”. The user can have as many documents she wishes in her drive and she can also edit and remove her documents. In essence this is a similar system to, for example, Google Drive or OneDrive. authenticated users cannot see anything – links to documents can be shared so that a non-authenticated user can see the file, not edit it. Data has to be saved to a database and usage of content management systems (CMS, e.g. WordPress or Drupal) is not allowed. Documentation has to be written. These basic features give 25 points from the proNon-ject."
+        "text": "Your task is to implement a system that lets users register, login and create text documents into a “cloud drive”. The user can have as many documents she wishes in her drive and she can also edit and remove her documents. In essence this is a similar system to, for example, Google Drive or OneDrive. Non-authenticated users cannot see anything – links to documents can be shared so that a non-authenticated user can see the file, not edit it. Data has to be saved to a database and usage of content management systems (CMS, e.g. WordPress or Drupal) is not allowed. Documentation has to be written. These basic features give 25 points from the project."
       }
     },
     {
@@ -336,7 +336,7 @@
           [
             "Users are able to comment parts of the document",
             "5",
-            "5"
+            ""
           ],
           [
             "In addition to text documents users are also able to create spreadsheets (very simple implementation is enough, only SUM()-function needs to be implemented in addition to cell manipulation)",
@@ -391,12 +391,12 @@
           [
             "Add search functionality of some sort",
             "2",
-            "2"
+            ""
           ],
           [
             "Add pagination to the document listing",
             "2",
-            "2"
+            ""
           ],
           [
             "Inappropriate content, including hate speech related memes and other trash",

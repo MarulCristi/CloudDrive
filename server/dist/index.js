@@ -15,6 +15,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { File } from './models/File.js';
+import { Comment } from './models/Comment.js';
 // Reading .docx and .pdf
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
@@ -36,6 +37,19 @@ mongoose.connect(mongoDB);
 mongoose.Promise = Promise;
 const db = mongoose.connection;
 db.on("error", console.error.bind(console, "MongoDB connection error"));
+// Clear all stale locks and waiting queues on server startup
+// This prevents files staying locked forever if the server crashed/restarted
+db.once("open", async () => {
+    try {
+        const result = await File.updateMany({ $or: [{ isLocked: true }, { 'waitingQueue.0': { $exists: true } }] }, { $set: { isLocked: false, forceUnlocked: false, waitingQueue: [] }, $unset: { lockedBy: 1, lockedAt: 1 } });
+        if (result.modifiedCount > 0) {
+            console.log(`Cleared ${result.modifiedCount} stale lock(s) on startup.`);
+        }
+    }
+    catch (err) {
+        console.error("Failed to clear stale locks on startup:", err);
+    }
+});
 // File filter to only allow text files
 const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('text/') || file.mimetype === 'application/pdf' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
@@ -807,20 +821,69 @@ app.get('/api/files', authenticateUser, async (req, res) => {
         if (!user || !user._id) {
             return res.status(401).json({ error: 'User not authenticated' });
         }
+        const page = parseInt(req.query['page']) || 1;
+        const limit = parseInt(req.query['limit']) || 3;
+        const sortKey = req.query['sortKey'] || 'uploadDate';
+        const sortDir = req.query['sortDir'] || 'desc';
+        const search = req.query['search'] || '';
+        // Build search filter
+        const searchFilter = search
+            ? { originalName: { $regex: search, $options: 'i' } }
+            : {};
         // Get files owned by user (NOT deleted)
-        const ownedFiles = await File.find({ userId: user._id, isDeleted: { $ne: true } }).select('filename originalName size createdAt uploadDate');
+        const ownedFilter = { userId: user._id, isDeleted: { $ne: true }, ...searchFilter };
+        const ownedFiles = await File.find(ownedFilter).select('filename originalName size createdAt uploadDate');
         // Get files shared with user (where they have edit permission) - exclude ones they own, exclude deleted
-        const sharedFiles = await File.find({
+        const sharedFilter = {
             'permissions.userId': user._id,
             'permissions.permission': 'edit',
             userId: { $ne: user._id },
-            isDeleted: { $ne: true }
-        }).select('filename originalName size createdAt uploadDate');
+            isDeleted: { $ne: true },
+            ...searchFilter
+        };
+        const sharedFiles = await File.find(sharedFilter).select('filename originalName size createdAt uploadDate');
+        // Combine and sort
         const allFiles = [
             ...ownedFiles.map(f => ({ ...f.toObject(), role: 'owner' })),
             ...sharedFiles.map(f => ({ ...f.toObject(), role: 'editor' }))
         ];
-        res.status(200).json({ files: allFiles });
+        // Sort
+        const sortMultiplier = sortDir === 'asc' ? 1 : -1;
+        allFiles.sort((a, b) => {
+            let valA;
+            let valB;
+            if (sortKey === 'name') {
+                valA = a.originalName.toLowerCase();
+                valB = b.originalName.toLowerCase();
+            }
+            else if (sortKey === 'createdAt') {
+                valA = new Date(a.createdAt).getTime();
+                valB = new Date(b.createdAt).getTime();
+            }
+            else {
+                valA = new Date(a.uploadDate).getTime();
+                valB = new Date(b.uploadDate).getTime();
+            }
+            if (valA < valB)
+                return -1 * sortMultiplier;
+            if (valA > valB)
+                return 1 * sortMultiplier;
+            return 0;
+        });
+        // Paginate
+        const totalFiles = allFiles.length;
+        const totalPages = Math.ceil(totalFiles / limit);
+        const startIndex = (page - 1) * limit;
+        const paginatedFiles = allFiles.slice(startIndex, startIndex + limit);
+        res.status(200).json({
+            files: paginatedFiles,
+            pagination: {
+                page,
+                limit,
+                totalFiles,
+                totalPages
+            }
+        });
     }
     catch (error) {
         console.log(error);
@@ -839,23 +902,89 @@ app.post('/api/files/:id/lock', authenticateUser, async (req, res) => {
         const canEdit = isOwner || userPermission?.permission === 'edit';
         if (!canEdit)
             return res.status(403).json({ error: 'You do not have edit permission' });
-        const LOCK_LEASE_MS = 30 * 1000; // 30 second grace period
-        const lockExpired = file.lockedAt && (Date.now() - file.lockedAt.getTime() > LOCK_LEASE_MS);
-        // Locked by someone else and lease hasn't expired
-        if (file.isLocked && file.lockedBy?.toString() !== userId && !lockExpired) {
-            const lockHolder = await User.findById(file.lockedBy).select('username');
-            const remainingMs = LOCK_LEASE_MS - (Date.now() - file.lockedAt.getTime());
+        const LOCK_LEASE_MS = 30 * 1000;
+        // Already locked by this user - just refresh the timestamp
+        if (file.isLocked && file.lockedBy?.toString() === userId) {
+            file.lockedAt = new Date();
+            await file.save();
+            return res.json({ message: 'Lock acquired' });
+        }
+        const lockExpired = file.isLocked && file.lockedAt && (Date.now() - file.lockedAt.getTime() > LOCK_LEASE_MS);
+        // If lock is not held or expired
+        if (!file.isLocked || lockExpired) {
+            // Clear expired lock state
+            if (lockExpired) {
+                file.isLocked = false;
+                file.lockedBy = undefined;
+                file.lockedAt = undefined;
+            }
+            // If queue is empty, grant lock immediately
+            if (file.waitingQueue.length === 0) {
+                file.isLocked = true;
+                file.lockedBy = new mongoose.Types.ObjectId(userId);
+                file.lockedAt = new Date();
+                await file.save();
+                return res.json({ message: 'Lock acquired' });
+            }
+            // Queue has people - check if this user is first
+            const firstInQueue = file.waitingQueue[0];
+            if (firstInQueue.userId.toString() === userId) {
+                // Grant lock, remove from queue
+                file.waitingQueue.shift();
+                file.isLocked = true;
+                file.lockedBy = new mongoose.Types.ObjectId(userId);
+                file.lockedAt = new Date();
+                await file.save();
+                return res.json({ message: 'Lock acquired' });
+            }
+            // This user is NOT first in queue - they must wait
+            // Make sure they're in the queue
+            const alreadyInQueue = file.waitingQueue.some(q => q.userId.toString() === userId);
+            if (!alreadyInQueue) {
+                file.waitingQueue.push({
+                    userId: new mongoose.Types.ObjectId(userId),
+                    joinedAt: new Date()
+                });
+            }
+            await file.save();
+            // Return queue info
+            const updatedFile = await File.findById(req.params['id']).populate('waitingQueue.userId', 'username');
+            const queueInfo = updatedFile?.waitingQueue || [];
+            const queueNames = queueInfo.map(q => q.userId?.username || 'Unknown');
+            const myPosition = queueInfo.findIndex(q => q.userId?._id?.toString() === userId || q.userId?.toString() === userId);
             return res.status(423).json({
-                lockedBy: lockHolder?.username || 'another user',
-                remainingSeconds: Math.ceil(remainingMs / 1000)
+                lockedBy: 'nobody (waiting for queue)',
+                remainingSeconds: 0,
+                queue: queueNames,
+                queuePosition: myPosition + 1,
+                isFirstInQueue: myPosition === 0,
+                lockFree: true
             });
         }
-        // Grant or renew lock
-        file.isLocked = true;
-        file.lockedBy = new mongoose.Types.ObjectId(userId);
-        file.lockedAt = new Date();
-        await file.save();
-        res.json({ message: 'Lock acquired' });
+        // Lock is actively held by someone else
+        // Add to queue if not already there
+        const alreadyInQueue = file.waitingQueue.some(q => q.userId.toString() === userId);
+        if (!alreadyInQueue) {
+            file.waitingQueue.push({
+                userId: new mongoose.Types.ObjectId(userId),
+                joinedAt: new Date()
+            });
+            await file.save();
+        }
+        const lockHolder = await User.findById(file.lockedBy).select('username');
+        const remainingMs = LOCK_LEASE_MS - (Date.now() - file.lockedAt.getTime());
+        const updatedFile = await File.findById(req.params['id']).populate('waitingQueue.userId', 'username');
+        const queueInfo = updatedFile?.waitingQueue || [];
+        const queueNames = queueInfo.map(q => q.userId?.username || 'Unknown');
+        const myPosition = queueInfo.findIndex(q => q.userId?._id?.toString() === userId || q.userId?.toString() === userId);
+        return res.status(423).json({
+            lockedBy: lockHolder?.username || 'another user',
+            remainingSeconds: Math.ceil(Math.max(0, remainingMs) / 1000),
+            queue: queueNames,
+            queuePosition: myPosition + 1,
+            isFirstInQueue: myPosition === 0,
+            lockFree: false
+        });
     }
     catch (error) {
         console.error(error);
@@ -942,30 +1071,215 @@ app.post('/api/files/:id/force-unlock', authenticateUser, async (req, res) => {
 });
 app.get('/api/files/:id/lock-status', authenticateUser, async (req, res) => {
     try {
+        const userId = req.user?._id;
         const file = await File.findById(req.params['id']);
         if (!file)
             return res.status(404).json({ error: 'File not found' });
         const LOCK_LEASE_MS = 30 * 1000;
+        // Sort waiting queue by joinedAt to ensure FIFO order
+        file.waitingQueue.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+        // If lock is not held at all
         if (!file.isLocked || !file.lockedAt) {
+            // If there's a queue, the first person should try to acquire
+            if (file.waitingQueue.length > 0) {
+                const firstInQueue = file.waitingQueue[0];
+                if (firstInQueue.userId.toString() === userId) {
+                    // This user is first - tell them to acquire
+                    return res.json({ locked: false, youAreNext: true });
+                }
+                // Someone else is first, keep waiting
+                const updatedFile = await File.findById(req.params['id']).populate('waitingQueue.userId', 'username');
+                const queueInfo = updatedFile?.waitingQueue || [];
+                queueInfo.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+                const queueNames = queueInfo.map(q => q.userId?.username || 'Unknown');
+                const myPosition = queueInfo.findIndex(q => q.userId?._id?.toString() === userId || q.userId?.toString() === userId);
+                return res.json({
+                    locked: true,
+                    lockedBy: 'next in queue',
+                    isActive: true,
+                    remainingSeconds: 0,
+                    queue: queueNames,
+                    queuePosition: myPosition + 1,
+                    isFirstInQueue: false
+                });
+            }
             return res.json({ locked: false });
         }
         const elapsed = Date.now() - file.lockedAt.getTime();
         const lockExpired = elapsed > LOCK_LEASE_MS;
         if (lockExpired) {
+            // Lock expired - clear it
+            file.isLocked = false;
+            file.lockedBy = undefined;
+            file.lockedAt = undefined;
+            await file.save();
+            // If this user is first in queue, tell them to acquire
+            if (file.waitingQueue.length > 0) {
+                const firstInQueue = file.waitingQueue[0];
+                if (firstInQueue.userId.toString() === userId) {
+                    return res.json({ locked: false, youAreNext: true });
+                }
+            }
             return res.json({ locked: false });
         }
+        // Lock is active
         const lockHolder = await User.findById(file.lockedBy).select('username');
-        // Check if the lock is being actively renewed (heartbeat running)
         const isActive = elapsed < 7 * 1000;
+        const updatedFile = await File.findById(req.params['id']).populate('waitingQueue.userId', 'username');
+        const queueInfo = updatedFile?.waitingQueue || [];
+        queueInfo.sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+        const queueNames = queueInfo.map(q => q.userId?.username || 'Unknown');
+        const myPosition = queueInfo.findIndex(q => q.userId?._id?.toString() === userId || q.userId?.toString() === userId);
+        const isFirstInQueue = myPosition === 0;
         return res.json({
             locked: true,
             lockedBy: lockHolder?.username || 'another user',
-            isActive, // true = user is present, false = user left
-            remainingSeconds: Math.ceil((LOCK_LEASE_MS - elapsed) / 1000), // only meaningful when !isActive
+            isActive,
+            remainingSeconds: Math.ceil((LOCK_LEASE_MS - elapsed) / 1000),
+            queue: queueNames,
+            queuePosition: myPosition + 1,
+            isFirstInQueue
         });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to get lock status' });
+    }
+});
+app.delete('/api/files/:id/queue', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        file.waitingQueue = file.waitingQueue.filter(q => q.userId.toString() !== userId);
+        await file.save();
+        res.json({ message: 'Removed from queue' });
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to leave queue' });
+    }
+});
+// Get all comments for a file
+app.get('/api/files/:id/comments', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        // Check access: owner or has permission
+        const isOwner = file.userId.toString() === userId;
+        const userPermission = file.permissions.find(p => p.userId?.toString() === userId);
+        if (!isOwner && !userPermission) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const fileId = String(req.params['id']);
+        const comments = await Comment.find({ fileId: new mongoose.Types.ObjectId(fileId) })
+            .populate('userId', 'username')
+            .sort({ createdAt: -1 });
+        res.json({ comments });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+});
+// Add a comment
+app.post('/api/files/:id/comments', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const { blockIndex, selectedText, text } = req.body;
+        if (blockIndex === undefined || !selectedText || !text) {
+            return res.status(400).json({ error: 'blockIndex, selectedText, and text are required' });
+        }
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        // Check access: owner or has permission
+        const isOwner = file.userId.toString() === userId;
+        const userPermission = file.permissions.find(p => p.userId?.toString() === userId);
+        if (!isOwner && !userPermission) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const comment = new Comment({
+            fileId: file._id,
+            userId: new mongoose.Types.ObjectId(userId),
+            blockIndex,
+            selectedText,
+            text,
+        });
+        await comment.save();
+        const populated = await Comment.findById(comment._id).populate('userId', 'username');
+        res.status(201).json({ comment: populated });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+// Resolve / unresolve a comment
+app.put('/api/files/:id/comments/:commentId/resolve', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        const isOwner = file.userId.toString() === userId;
+        const comment = await Comment.findById(req.params['commentId']);
+        if (!comment)
+            return res.status(404).json({ error: 'Comment not found' });
+        // Only file owner or comment author can resolve
+        if (!isOwner && comment.userId.toString() !== userId) {
+            return res.status(403).json({ error: 'Only the file owner or comment author can resolve' });
+        }
+        comment.resolved = !comment.resolved;
+        comment.updatedAt = new Date();
+        await comment.save();
+        const populated = await Comment.findById(comment._id).populate('userId', 'username');
+        res.json({ comment: populated });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to resolve comment' });
+    }
+});
+// Delete a comment
+app.delete('/api/files/:id/comments/:commentId', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        const isOwner = file.userId.toString() === userId;
+        const comment = await Comment.findById(req.params['commentId']);
+        if (!comment)
+            return res.status(404).json({ error: 'Comment not found' });
+        // Only file owner or comment author can delete
+        if (!isOwner && comment.userId.toString() !== userId) {
+            return res.status(403).json({ error: 'Only the file owner or comment author can delete' });
+        }
+        await Comment.findByIdAndDelete(req.params['commentId']);
+        res.json({ message: 'Comment deleted' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete comment' });
+    }
+});
+// Get comments for shared view-only link
+app.get('/api/files/shared/:token/comments', async (req, res) => {
+    try {
+        const shareToken = String(req.params['token']);
+        const decoded = jwt.verify(shareToken, process.env.SECRET);
+        if (!decoded || typeof decoded === 'string' || !decoded.fileId || decoded.permission !== 'view') {
+            return res.status(403).json({ error: 'Invalid share link' });
+        }
+        const comments = await Comment.find({ fileId: decoded.fileId })
+            .populate('userId', 'username')
+            .sort({ createdAt: -1 });
+        res.json({ comments });
+    }
+    catch (error) {
+        res.status(401).json({ error: 'Invalid or expired share link' });
     }
 });
 app.listen(port, () => {

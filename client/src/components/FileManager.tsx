@@ -4,14 +4,16 @@ import {
     Box, Button, Typography, Paper, CircularProgress, Alert, 
     IconButton, TextField, Tooltip, Tabs, Tab,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
-    Avatar, Chip,
+    Avatar, Chip, Pagination,
     ToggleButton,
-    ToggleButtonGroup
+    ToggleButtonGroup,
+    InputAdornment
 } from '@mui/material';
 import { 
     Delete, Edit, Share, CloudUpload, 
     RestoreFromTrash, DeleteForever, ContentCopy,
-    Schedule, SortByAlpha, DriveFileRenameOutline
+    Schedule, SortByAlpha, DriveFileRenameOutline,
+    Search
 } from '@mui/icons-material';
 import { jwtDecode } from 'jwt-decode';
 import ShareDialog from './ShareModal';
@@ -34,6 +36,13 @@ interface TrashFileData {
     deletedAt: string;
 }
 
+interface PaginationData {
+    page: number;
+    limit: number;
+    totalFiles: number;
+    totalPages: number;
+}
+
 type SortKey = 'name' | 'createdAt' | 'uploadDate';
 
 function FileManager() {
@@ -51,6 +60,14 @@ function FileManager() {
     const [sortKey, setSortKey] = useState<SortKey>('uploadDate');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pagination, setPagination] = useState<PaginationData>({ page: 1, limit: 3, totalFiles: 0, totalPages: 1 });
+
+    // Search
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+
     // Tabs, trash, confirm dialogs
     const [activeTab, setActiveTab] = useState(0);
     const [trashFiles, setTrashFiles] = useState<TrashFileData[]>([]);
@@ -67,7 +84,7 @@ function FileManager() {
     useEffect(() => {
         fetchFiles();
         fetchProfile();
-    }, []);
+    }, [currentPage, sortKey, sortDir, searchQuery]);
 
     const fetchProfile = async () => {
         try {
@@ -124,12 +141,20 @@ function FileManager() {
         setError('');
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('/api/files', {
+            const params = new URLSearchParams({
+                page: currentPage.toString(),
+                limit: '3',
+                sortKey,
+                sortDir,
+                search: searchQuery
+            });
+            const response = await fetch(`/api/files?${params}`, {
                 headers: { 'authorization': `Bearer ${token}` }
             });
             const data = await response.json();
             if (response.ok) {
                 setFiles(data.files || []);
+                setPagination(data.pagination || { page: 1, limit: 3, totalFiles: 0, totalPages: 1 });
             } else {
                 setError(data.error || 'Failed to fetch files');
             }
@@ -140,28 +165,6 @@ function FileManager() {
         }
     };
 
-    const getSortedFiles = () => {
-        return [...files].sort((a, b) => {
-            let valA: string | number;
-            let valB: string | number;
-
-            if (sortKey === 'name') {
-                valA = a.originalName.toLowerCase();
-                valB = b.originalName.toLowerCase();
-            } else if (sortKey === 'createdAt') {
-                valA = new Date(a.createdAt || a.uploadDate).getTime();
-                valB = new Date(b.createdAt || b.uploadDate).getTime();
-            } else {
-                valA = new Date(a.uploadDate).getTime();
-                valB = new Date(b.uploadDate).getTime();
-            }
-
-            if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-            if (valA > valB) return sortDir === 'asc' ? 1 : -1;
-            return 0;
-        });
-    };
-
     const handleSortChange = (key: SortKey) => {
         if (sortKey === key) {
             setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -169,6 +172,22 @@ function FileManager() {
             setSortKey(key);
             setSortDir('asc');
         }
+        setCurrentPage(1); // Reset to first page when sorting changes
+    };
+
+    const handleSearch = () => {
+        setSearchQuery(searchInput);
+        setCurrentPage(1);
+    };
+
+    const handleClearSearch = () => {
+        setSearchInput('');
+        setSearchQuery('');
+        setCurrentPage(1);
+    };
+
+    const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+        setCurrentPage(page);
     };
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,8 +248,7 @@ function FileManager() {
             });
             if (response.ok) {
                 setSuccess('File moved to recycle bin');
-                // Immediately remove from local state so it disappears
-                setFiles(prev => prev.filter(f => f._id !== fileId));
+                fetchFiles(); // Re-fetch to update pagination correctly
                 if (activeTab === 1) fetchTrash();
             } else {
                 const data = await response.json();
@@ -362,12 +380,11 @@ function FileManager() {
                 body: JSON.stringify({ newName: name })
             });
             if (response.ok) {
-                const data = await response.json();
-                setFiles(files.map(f => f._id === fileId ? { ...f, ...data.file } : f));
                 setSuccess('File renamed successfully');
                 setEditingNameId(null);
                 setNewName('');
                 setFileExtension('');
+                fetchFiles();
             } else {
                 const data = await response.json();
                 setError(data.error || 'Failed to rename file');
@@ -389,8 +406,6 @@ function FileManager() {
         const lastDot = fullName.lastIndexOf('.');
         return { base: fullName.substring(0, lastDot), ext: fullName.substring(lastDot) };
     };
-
-    const sortedFiles = getSortedFiles();
 
     return (
         <Box sx={{ width: '100%', maxWidth: 1200, margin: '80px auto 20px', p: 3 }}>
@@ -480,6 +495,36 @@ function FileManager() {
             {/* Tab 0: Files list */}
             {activeTab === 0 && (
                 <Paper sx={{ p: 3, width: '100%' }}>
+                    {/* Search bar */}
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                        <TextField
+                            size="small"
+                            placeholder="Search documents..."
+                            value={searchInput}
+                            onChange={e => setSearchInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+                            sx={{ flex: 1 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Search fontSize="small" />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+                        <Button variant="contained" size="small" onClick={handleSearch}>Search</Button>
+                        {searchQuery && (
+                            <Button variant="outlined" size="small" onClick={handleClearSearch}>Clear</Button>
+                        )}
+                    </Box>
+
+                    {searchQuery && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Showing results for "<strong>{searchQuery}</strong>" ({pagination.totalFiles} found)
+                        </Typography>
+                    )}
+
+                    {/* Sort controls */}
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" color="text.secondary">Sort by:</Typography>
@@ -519,10 +564,17 @@ function FileManager() {
                                 </Tooltip>
                             </ToggleButtonGroup>
                         </Box>
+                        <Typography variant="body2" color="text.secondary">
+                            {pagination.totalFiles} file{pagination.totalFiles !== 1 ? 's' : ''}
+                        </Typography>
                     </Box>
 
-                    {loading ? <CircularProgress /> : (
-                        sortedFiles.map(file => {
+                    {loading ? <CircularProgress /> : files.length === 0 ? (
+                        <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                            {searchQuery ? 'No files match your search.' : 'No files yet. Upload one to get started!'}
+                        </Typography>
+                    ) : (
+                        files.map(file => {
                             const isEditing = editingNameId === file._id;
                             return (
                                 <Paper
@@ -630,6 +682,20 @@ function FileManager() {
                                 </Paper>
                             );
                         })
+                    )}
+
+                    {/* Pagination */}
+                    {pagination.totalPages > 1 && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                            <Pagination
+                                count={pagination.totalPages}
+                                page={currentPage}
+                                onChange={handlePageChange}
+                                color="primary"
+                                showFirstButton
+                                showLastButton
+                            />
+                        </Box>
                     )}
                 </Paper>
             )}

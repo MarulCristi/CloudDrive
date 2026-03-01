@@ -20,6 +20,10 @@ interface IFile extends Document {
     forceUnlocked?: Boolean | undefined;
     isDeleted: boolean;
     deletedAt?: Date | undefined;
+    waitingQueue: Array<{
+        userId: mongoose.Types.ObjectId;
+        joinedAt: Date;
+    }>;
 }
 declare const FileModel: mongoose.Model<IFile, {}, {}, {}, mongoose.Document<unknown, {}, IFile, {}, mongoose.DefaultSchemaOptions> & IFile & Required<{
     _id: mongoose.Types.ObjectId;

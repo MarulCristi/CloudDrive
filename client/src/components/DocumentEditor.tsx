@@ -1,16 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
-import { Box, Button, Typography, Alert, CircularProgress } from '@mui/material';
+import {
+  Box, Button, Typography, Alert, CircularProgress, Chip,
+  Drawer, TextField, IconButton, Divider, Tooltip, Badge,
+  Menu, MenuItem, ListItemIcon, ListItemText
+} from '@mui/material';
 import Table from '@editorjs/table';
 import Quote from '@editorjs/quote';
 import Code from '@editorjs/code';
 import Delimiter from '@editorjs/delimiter';
-import { Share, Lock, Download } from '@mui/icons-material';
+import Underline from '@editorjs/underline';
+import Marker from '@editorjs/marker';
+import InlineCode from '@editorjs/inline-code';
+import Checklist from '@editorjs/checklist';
+import Warning from '@editorjs/warning';
+import Undo from 'editorjs-undo';
+import {
+  Share, Lock, Download, People, Comment as CommentIcon,
+  Delete, CheckCircle, CheckCircleOutline, Close,
+  Undo as UndoIcon, Redo as RedoIcon
+} from '@mui/icons-material';
 import ShareDialog from './ShareModal';
 import jsPDF from 'jspdf';
+
+interface CommentData {
+  _id: string;
+  blockIndex: number;
+  selectedText: string;
+  text: string;
+  resolved: boolean;
+  userId: { _id: string; username: string };
+  createdAt: string;
+  updatedAt: string;
+}
 
 const DocumentEditor: React.FC = () => {
   const { id, token } = useParams<{ id?: string; token?: string }>();
@@ -28,8 +53,34 @@ const DocumentEditor: React.FC = () => {
   // lock logic
   const [isLocked, setIsLocked] = useState(false);
   const [lockedBy, setLockedBy] = useState('');
-  const [lockCountdown, setLockCountdown] = useState<number | null>(null); // null = user is active
-  const [isOwner, setIsOwner] = useState(false); // track if current user owns the file
+  const [lockCountdown, setLockCountdown] = useState<number | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Queue state
+  const [queueNames, setQueueNames] = useState<string[]>([]);
+  const [queuePosition, setQueuePosition] = useState<number>(-1);
+  const [isFirstInQueue, setIsFirstInQueue] = useState(false);
+
+  // Unsaved changes tracking
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const initialDataRef = useRef<string>('');
+  const editorReadyRef = useRef(false); // Gate: only track changes after editor settles
+
+  // Comments
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [selectedText, setSelectedText] = useState('');
+  const [selectedBlockIndex, setSelectedBlockIndex] = useState<number>(-1);
+  const [showResolved, setShowResolved] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
+
+  // Context menu for comments
+  const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number } | null>(null);
+  const pendingCommentRef = useRef<{ text: string; blockIndex: number } | null>(null);
+
+  // Undo/Redo
+  const undoRef = useRef<any>(null);
 
   const lockAcquiredRef = useRef(false);
   const lastActivityRef = useRef<number>(Date.now());
@@ -44,18 +95,47 @@ const DocumentEditor: React.FC = () => {
     tokenRef.current = token;
   }, [id, token]);
 
-  const releaseLockBeacon = () => {
-    // if (lockAcquiredRef.current && idRef.current && !tokenRef.current) {
-    //   const authToken = localStorage.getItem('token');
-    //   const blob = new Blob([], { type: 'application/json' });
-    //   navigator.sendBeacon(
-    //     `/api/files/${idRef.current}/lock-release?token=${authToken}`,
-    //     blob
-    //   );
-    // }
+  // ========== Unsaved changes: beforeunload warning ==========
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
-    // Intentionally empty - we let the lease expire naturally
-    // This gives the user 30 seconds to come back
+  // ========== Check for changes (only after editor is ready) ==========
+  const checkForChanges = useCallback(async () => {
+    if (!editorRef.current || !lockAcquiredRef.current || !editorReadyRef.current) return;
+    try {
+      const currentData = await editorRef.current.save();
+      const currentStr = JSON.stringify(currentData);
+      setHasUnsavedChanges(currentStr !== initialDataRef.current);
+    } catch {
+      // editor might not be ready
+    }
+  }, []);
+
+  // ========== Leave queue on unmount ==========
+  const leaveQueue = useCallback(async () => {
+    if (idRef.current && !tokenRef.current && !lockAcquiredRef.current) {
+      const authToken = localStorage.getItem('token');
+      try {
+        await fetch(`/api/files/${idRef.current}/queue`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+      } catch (err) {
+        console.error('Failed to leave queue:', err);
+      }
+    }
+  }, []);
+
+  const releaseLockBeacon = () => {
+    // Let the lease expire naturally
   };
 
   useEffect(() => {
@@ -63,7 +143,6 @@ const DocumentEditor: React.FC = () => {
     return () => window.removeEventListener('beforeunload', releaseLockBeacon);
   }, []);
 
-  // Heartbeat — renew lock AND check if owner force-unlocked us
   const startHeartbeat = () => {
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     heartbeatRef.current = setInterval(async () => {
@@ -76,7 +155,6 @@ const DocumentEditor: React.FC = () => {
         });
 
         if (res.status === 403) {
-          // Owner force-unlocked us - stop editing, refresh
           lockAcquiredRef.current = false;
           clearInterval(heartbeatRef.current!);
           alert('The file owner has unlocked this document. Your session has ended.');
@@ -86,6 +164,58 @@ const DocumentEditor: React.FC = () => {
         console.error('Heartbeat failed:', err);
       }
     }, 5000);
+  };
+
+  const startLockPolling = () => {
+    if (lockPollRef.current) clearInterval(lockPollRef.current);
+    lockPollRef.current = setInterval(async () => {
+      try {
+        const authToken = localStorage.getItem('token');
+        const res = await fetch(`/api/files/${idRef.current}/lock-status`, {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+
+        // Lock is free and we're next - try to acquire
+        if (!data.locked || data.youAreNext) {
+          clearInterval(lockPollRef.current!);
+          lockPollRef.current = null;
+
+          // Try to acquire the lock
+          const lockRes = await fetch(`/api/files/${idRef.current}/lock`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+          });
+
+          if (lockRes.ok) {
+            // Got the lock - reload to start editing
+            window.location.reload();
+          } else {
+            // Someone else got it first - start polling again
+            startLockPolling();
+          }
+          return;
+        }
+
+        setLockedBy(data.lockedBy);
+        setQueueNames(data.queue || []);
+        setQueuePosition(data.queuePosition || -1);
+        setIsFirstInQueue(data.isFirstInQueue || false);
+
+        if (data.isActive) {
+          setLockCountdown(null);
+        } else {
+          // Only show countdown to the first person in queue
+          if (data.isFirstInQueue) {
+            setLockCountdown(data.remainingSeconds);
+          } else {
+            setLockCountdown(null);
+          }
+        }
+      } catch (err) {
+        console.error('Lock poll failed:', err);
+      }
+    }, 1000);
   };
 
   useEffect(() => {
@@ -102,7 +232,6 @@ const DocumentEditor: React.FC = () => {
           });
         }
 
-
         if (!response.ok) {
           setError('Failed to fetch file content');
           setLoading(false);
@@ -111,7 +240,6 @@ const DocumentEditor: React.FC = () => {
 
         const data = await response.json();
         setFileName(data.filename || 'Untitled Document');
-
         setIsOwner(data.isOwner === true);
 
         const editAllowed = data.canEdit !== false && !token;
@@ -146,15 +274,18 @@ const DocumentEditor: React.FC = () => {
             });
 
             if (lockResponse.status === 423) {
-                  const lockData = await lockResponse.json();
-                  setIsLocked(true);
-                  setLockedBy(lockData.lockedBy);
-                  // Start polling — page will auto-refresh when lock expires
-                  startLockPolling();
+              const lockData = await lockResponse.json();
+              setIsLocked(true);
+              lockedState = true;
+              setLockedBy(lockData.lockedBy);
+              setQueueNames(lockData.queue || []);
+              setQueuePosition(lockData.queuePosition || -1);
+              setIsFirstInQueue(lockData.isFirstInQueue || false);
+              startLockPolling();
             } else if (lockResponse.ok) {
-                lockAcquiredRef.current = true;
-                startInactivityTimer();
-                startHeartbeat();
+              lockAcquiredRef.current = true;
+              startInactivityTimer();
+              startHeartbeat();
             }
           } catch (err) {
             console.error('Failed to acquire lock:', err);
@@ -174,10 +305,42 @@ const DocumentEditor: React.FC = () => {
               quote: { class: Quote, inlineToolbar: true, config: { quotePlaceholder: 'Enter a quote', captionPlaceholder: "Quote's author" } },
               code: Code,
               delimiter: Delimiter,
+              underline: Underline,
+              marker: { class: Marker, shortcut: 'CMD+SHIFT+M' },
+              inlineCode: { class: InlineCode, shortcut: 'CMD+E' },
+              checklist: { class: Checklist, inlineToolbar: true },
+              warning: { class: Warning, inlineToolbar: true, config: { titlePlaceholder: 'Title', messagePlaceholder: 'Message' } },
             } as any,
             data: editorData,
             readOnly: !editAllowed || lockedState,
             placeholder: editAllowed && !lockedState ? 'Start typing your document...' : '',
+            onReady: () => {
+              // Initialize undo/redo (Ctrl+Z / Ctrl+Shift+Z)
+              if (editorRef.current && editAllowed && !lockedState) {
+                undoRef.current = new Undo({ editor: editorRef.current, config: { debounceTimer: 200 } });
+                undoRef.current.initialize(editorData);
+              }
+              // Save the initial state AFTER the editor has fully rendered,
+              // then enable change tracking after a short delay
+              if (editorRef.current) {
+                editorRef.current.save().then((savedData) => {
+                  initialDataRef.current = JSON.stringify(savedData);
+                  // Wait a tick so any initial onChange events finish
+                  setTimeout(() => {
+                    editorReadyRef.current = true;
+                  }, 500);
+                }).catch(() => {
+                  // Fallback: use the data we loaded
+                  initialDataRef.current = JSON.stringify(editorData);
+                  setTimeout(() => {
+                    editorReadyRef.current = true;
+                  }, 500);
+                });
+              }
+            },
+            onChange: async () => {
+              checkForChanges();
+            },
           });
         }, 100);
 
@@ -190,11 +353,14 @@ const DocumentEditor: React.FC = () => {
     initEditor();
 
     return () => {
+      editorReadyRef.current = false;
       if (inactivityTimerRef.current) clearInterval(inactivityTimerRef.current);
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       if (lockPollRef.current) clearInterval(lockPollRef.current);
 
-      // Only release lock when navigating away within the app (not tab close)
+      // Leave queue if we were waiting
+      leaveQueue();
+
       if (lockAcquiredRef.current && id && !token) {
         const authToken = localStorage.getItem('token');
         fetch(`/api/files/${id}/lock`, {
@@ -241,39 +407,13 @@ const DocumentEditor: React.FC = () => {
     }
   };
 
-  // Poll every 1s when locked - tracks whether holder is active or gone
-  const startLockPolling = () => {
-    if (lockPollRef.current) clearInterval(lockPollRef.current);
-    lockPollRef.current = setInterval(async () => {
-      try {
-        const authToken = localStorage.getItem('token');
-        const res = await fetch(`/api/files/${idRef.current}/lock-status`, {
-          headers: { 'Authorization': `Bearer ${authToken}` },
-        });
-        const data = await res.json();
-
-        if (!data.locked) {
-          // Lock fully expired - refresh and acquire it
-          clearInterval(lockPollRef.current!);
-          lockPollRef.current = null;
-          window.location.reload();
-          return;
-        }
-
-        setLockedBy(data.lockedBy);
-
-        if (data.isActive) {
-          // User came back or is still here - hide countdown
-          setLockCountdown(null);
-        } else {
-          // User has left - show countdown with remaining seconds
-          setLockCountdown(data.remainingSeconds);
-        }
-
-      } catch (err) {
-        console.error('Lock poll failed:', err);
-      }
-    }, 1000); // poll every 1 second for responsive UI
+  const handleBack = async () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('Are you sure you want to leave? Unsaved progress will be lost.');
+      if (!confirmed) return;
+    }
+    setHasUnsavedChanges(false);
+    navigate('/');
   };
 
   const handleDownloadPDF = async () => {
@@ -306,7 +446,6 @@ const DocumentEditor: React.FC = () => {
         fontStyle: string = 'normal',
         indent: number = 0
       ) => {
-        // Strip basic HTML tags for plain text rendering
         const plain = text
           .replace(/<br\s*\/?>/gi, '\n')
           .replace(/<[^>]+>/g, '')
@@ -340,7 +479,6 @@ const DocumentEditor: React.FC = () => {
         const bulletIndent = ordered ? 20 : 15;
 
         items.forEach((item: any, index: number) => {
-          // EditorJS list items can be a string or { content: string, items: [] }
           const text = typeof item === 'string' ? item : (item.content ?? '');
           const children = typeof item === 'object' && Array.isArray(item.items) ? item.items : [];
           const marker = ordered ? `${index + 1}.` : depth === 0 ? '•' : depth === 1 ? '◦' : '▪';
@@ -350,11 +488,9 @@ const DocumentEditor: React.FC = () => {
           const lineHeight = 11 * 1.4;
           checkPageBreak(lineHeight);
 
-          // Draw marker at indented position
           const markerX = marginLeft + indent;
           pdf.text(marker, markerX, y);
 
-          // Draw text with space after marker
           const plain = text
             .replace(/<br\s*\/?>/gi, '\n')
             .replace(/<[^>]+>/g, '')
@@ -375,7 +511,6 @@ const DocumentEditor: React.FC = () => {
             y += lineHeight;
           }
 
-          // Render nested children with increased depth
           if (children.length > 0) {
             renderListItems(children, ordered, depth + 1, [...parentIndex, index + 1]);
           }
@@ -387,9 +522,9 @@ const DocumentEditor: React.FC = () => {
           case 'header': {
             const sizes: Record<number, number> = { 1: 24, 2: 20, 3: 17, 4: 15, 5: 13, 6: 12 };
             const fontSize = sizes[block.data.level] || 14;
-            y += 6; // extra space before heading
+            y += 6;
             renderWrappedText(block.data.text, marginLeft, fontSize, 'bold');
-            y += 4; // extra space after heading
+            y += 4;
             break;
           }
           case 'paragraph': {
@@ -405,35 +540,27 @@ const DocumentEditor: React.FC = () => {
           }
           case 'quote': {
             y += 4;
-            // Draw left border line
             checkPageBreak(16);
             const quoteStartY = y;
             renderWrappedText(block.data.text, marginLeft + 15, 11, 'italic', 0);
-            // Draw vertical bar
             pdf.setDrawColor(180, 180, 180);
             pdf.setLineWidth(2);
             pdf.line(marginLeft + 8, quoteStartY - 12, marginLeft + 8, y);
             if (block.data.caption) {
-              renderWrappedText(`— ${block.data.caption}`, marginLeft + 15, 9, 'italic', 0);
+              renderWrappedText(`- ${block.data.caption}`, marginLeft + 15, 9, 'italic', 0);
             }
             y += 6;
             break;
           }
           case 'code': {
             y += 4;
-            // Light gray background
             const codeLines = pdf.splitTextToSize(block.data.code, usableWidth - 20);
             const codeLineHeight = 10 * 1.3;
-            const codeBlockHeight = codeLines.length * codeLineHeight + 16;
-            checkPageBreak(Math.min(codeBlockHeight, 60)); // at least check for a few lines
-
-            pdf.setFillColor(244, 244, 244);
+            checkPageBreak(Math.min(codeLines.length * codeLineHeight + 16, 60));
             pdf.setFont('courier', 'normal');
             pdf.setFontSize(9);
-
             for (const line of codeLines) {
               checkPageBreak(codeLineHeight);
-              // Draw background strip for this line
               pdf.setFillColor(244, 244, 244);
               pdf.rect(marginLeft, y - 9, usableWidth, codeLineHeight, 'F');
               pdf.text(line, marginLeft + 10, y);
@@ -454,20 +581,15 @@ const DocumentEditor: React.FC = () => {
           case 'table': {
             const rows: string[][] = block.data.content;
             if (!rows || rows.length === 0) break;
-
             const colCount = rows[0]!.length;
             const colWidth = usableWidth / colCount;
             const cellPadding = 6;
             const tableFontSize = 9;
-
             pdf.setFontSize(tableFontSize);
             y += 4;
-
             for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
               const row = rows[rowIdx]!;
               const isHeader = block.data.withHeadings && rowIdx === 0;
-
-              // Calculate row height based on tallest cell
               let maxLines = 1;
               const cellLines: string[][] = row.map((cell: string) => {
                 const plain = cell.replace(/<[^>]+>/g, '');
@@ -476,14 +598,9 @@ const DocumentEditor: React.FC = () => {
                 return lines;
               });
               const rowHeight = maxLines * tableFontSize * 1.3 + cellPadding * 2;
-
               checkPageBreak(rowHeight);
-
-              // Draw cell borders and text
               for (let colIdx = 0; colIdx < colCount; colIdx++) {
                 const cellX = marginLeft + colIdx * colWidth;
-
-                // Background for header
                 if (isHeader) {
                   pdf.setFillColor(230, 230, 230);
                   pdf.rect(cellX, y, colWidth, rowHeight, 'FD');
@@ -493,15 +610,10 @@ const DocumentEditor: React.FC = () => {
                   pdf.rect(cellX, y, colWidth, rowHeight, 'S');
                   pdf.setFont('helvetica', 'normal');
                 }
-
                 pdf.setFontSize(tableFontSize);
                 const lines = cellLines[colIdx]!;
                 for (let li = 0; li < lines.length; li++) {
-                  pdf.text(
-                    lines[li],
-                    cellX + cellPadding,
-                    y + cellPadding + tableFontSize + li * tableFontSize * 1.3
-                  );
+                  pdf.text(lines[li], cellX + cellPadding, y + cellPadding + tableFontSize + li * tableFontSize * 1.3);
                 }
               }
               y += rowHeight;
@@ -516,16 +628,16 @@ const DocumentEditor: React.FC = () => {
 
       const safeName = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-z0-9_\- ]/gi, '_');
       pdf.save(`${safeName}.pdf`);
-
     } catch (err) {
       console.error('PDF generation failed:', err);
       setError('Failed to generate PDF');
     }
   };
 
-  const updateActivity = () => { lastActivityRef.current = Date.now(); };
+  const updateActivity = () => {
+    lastActivityRef.current = Date.now();
+  };
 
-  // ...existing handleSave, handleForceUnlock unchanged...
   const handleSave = async () => {
     if (!editorRef.current || !canEdit || isLocked) return;
     setSaving(true);
@@ -540,6 +652,9 @@ const DocumentEditor: React.FC = () => {
         body: JSON.stringify({ content: savedData }),
       });
       if (!response.ok) throw new Error('Failed to save changes');
+      // Update initial data reference so it's no longer "unsaved"
+      initialDataRef.current = JSON.stringify(savedData);
+      setHasUnsavedChanges(false);
       setSuccess('Document saved successfully!');
       setTimeout(() => navigate('/'), 2000);
     } catch (err: any) {
@@ -568,24 +683,215 @@ const DocumentEditor: React.FC = () => {
     }
   };
 
+  const fetchComments = useCallback(async () => {
+    try {
+      let response;
+      if (token) {
+        response = await fetch(`/api/files/shared/${token}/comments`);
+      } else {
+        const authToken = localStorage.getItem('token');
+        response = await fetch(`/api/files/${id}/comments`, {
+          headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+      }
+      if (response.ok) {
+        const data = await response.json();
+        setComments(data.comments || []);
+        setCommentCount((data.comments || []).filter((c: CommentData) => !c.resolved).length);
+      }
+    } catch (err) {
+      console.error('Failed to fetch comments:', err);
+    }
+  }, [id, token]);
+
+  useEffect(() => {
+    if (id || token) {
+      fetchComments();
+    }
+  }, [id, token, fetchComments]);
+
+  const handleAddComment = async () => {
+    if (!newCommentText.trim() || !selectedText.trim() || selectedBlockIndex < 0) return;
+
+    try {
+      const authToken = localStorage.getItem('token');
+      const response = await fetch(`/api/files/${id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          blockIndex: selectedBlockIndex,
+          selectedText: selectedText,
+          text: newCommentText,
+        }),
+      });
+
+      if (response.ok) {
+        setNewCommentText('');
+        setSelectedText('');
+        setSelectedBlockIndex(-1);
+        fetchComments();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to add comment');
+      }
+    } catch (err) {
+      setError('Failed to add comment');
+    }
+  };
+
+  const handleResolveComment = async (commentId: string) => {
+    try {
+      const authToken = localStorage.getItem('token');
+      const response = await fetch(`/api/files/${id}/comments/${commentId}/resolve`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (response.ok) {
+        fetchComments();
+      }
+    } catch (err) {
+      console.error('Failed to resolve comment:', err);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const authToken = localStorage.getItem('token');
+      const response = await fetch(`/api/files/${id}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (response.ok) {
+        fetchComments();
+      }
+    } catch (err) {
+      console.error('Failed to delete comment:', err);
+    }
+  };
+
+  const captureSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+      return null;
+    }
+
+    const text = selection.toString().trim();
+    const editorHolder = document.getElementById('editorjs');
+    if (!editorHolder) return null;
+
+    const anchorNode = selection.anchorNode;
+    if (!anchorNode) return null;
+
+    let blockEl: HTMLElement | null = anchorNode.nodeType === 1
+      ? anchorNode as HTMLElement
+      : anchorNode.parentElement;
+
+    while (blockEl && !blockEl.classList?.contains('ce-block')) {
+      blockEl = blockEl.parentElement;
+    }
+
+    if (!blockEl) return null;
+
+    const allBlocks = editorHolder.querySelectorAll('.ce-block');
+    let blockIndex = -1;
+    allBlocks.forEach((b, i) => {
+      if (b === blockEl) blockIndex = i;
+    });
+
+    if (blockIndex >= 0) {
+      return { text, blockIndex };
+    }
+    return null;
+  };
+
+  const handleContextMenu = useCallback((e: MouseEvent) => {
+    const result = captureSelection();
+    if (result) {
+      e.preventDefault();
+      pendingCommentRef.current = result;
+      setContextMenu({ mouseX: e.clientX, mouseY: e.clientY });
+    }
+  }, []);
+
+  const handleContextMenuComment = () => {
+    if (pendingCommentRef.current) {
+      setSelectedText(pendingCommentRef.current.text);
+      setSelectedBlockIndex(pendingCommentRef.current.blockIndex);
+      setCommentDrawerOpen(true);
+      pendingCommentRef.current = null;
+    }
+    setContextMenu(null);
+  };
+
+  const handleContextMenuClose = () => {
+    setContextMenu(null);
+    pendingCommentRef.current = null;
+  };
+
+  useEffect(() => {
+    const editorHolder = document.getElementById('editorjs');
+    if (editorHolder) {
+      editorHolder.addEventListener('contextmenu', handleContextMenu);
+      return () => editorHolder.removeEventListener('contextmenu', handleContextMenu);
+    }
+  });
+
+  const formatCommentDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const filteredComments = showResolved ? comments : comments.filter(c => !c.resolved);
+
   if (loading) return <CircularProgress />;
 
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', padding: '20px', border: '1px solid', borderColor: 'divider', borderRadius: '4px', minHeight: '500px', '& .ce-block__content': { maxWidth: '100% !important' }, '& .ce-toolbar__content': { maxWidth: '100% !important' }, '& .codex-editor': { maxWidth: '100% !important' }, overflowX: 'auto' }}>
       <Box sx={{ marginBottom: '20px' }}>
-        <Typography variant="h4" sx={{ marginBottom: '10px', marginTop: '25px' }}>{fileName}</Typography>
+        <Typography variant="h4" sx={{ marginBottom: '10px', marginTop: '25px' }}>
+          {fileName}
+          {hasUnsavedChanges && (
+            <Chip label="Unsaved changes" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />
+          )}
+        </Typography>
 
         {isViewOnly && <Alert severity="info" sx={{ mb: 2 }}>This is a view-only document. You cannot make changes.</Alert>}
 
         {isLocked && (
           <Alert severity="warning" sx={{ mb: 2 }} icon={<Lock />}>
             {lockCountdown === null ? (
-              // User is actively editing
-              <>This document is currently being edited by <strong>{lockedBy}</strong>. Wait for them to finish for it to become available.</>
+              isFirstInQueue ? (
+                <>This document is currently being edited by <strong>{lockedBy}</strong>. You are next in line - waiting for them to finish.</>
+              ) : queuePosition > 0 ? (
+                <>This document is currently being edited by <strong>{lockedBy}</strong>. You are <strong>#{queuePosition}</strong> in the queue.</>
+              ) : (
+                <>This document is currently being edited by <strong>{lockedBy}</strong>. Waiting for them to finish.</>
+              )
             ) : (
-              // User has left, countdown running
               <><strong>{lockedBy}</strong> left the document. They have <strong>{lockCountdown}s</strong> to return before you can edit.</>
             )}
+          </Alert>
+        )}
+
+        {/* Show queue info */}
+        {isLocked && queueNames.length > 0 && (
+          <Alert severity="info" sx={{ mb: 2 }} icon={<People />}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+              Waiting queue ({queueNames.length} {queueNames.length === 1 ? 'person' : 'people'}):
+            </Typography>
+            {queueNames.map((name, idx) => (
+              <Chip
+                key={idx}
+                label={`${idx + 1}. ${name}`}
+                size="small"
+                variant={idx === (queuePosition - 1) ? 'filled' : 'outlined'}
+                color={idx === (queuePosition - 1) ? 'primary' : 'default'}
+                sx={{ mr: 0.5, mb: 0.5 }}
+              />
+            ))}
           </Alert>
         )}
 
@@ -597,15 +903,27 @@ const DocumentEditor: React.FC = () => {
             <Button variant="contained" onClick={handleSave} disabled={saving || loading} sx={{ mr: 1 }}>
               {saving ? 'Saving...' : 'Save'}
             </Button>
-            <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back</Button>
-            <Button variant="outlined" startIcon={<Share />} onClick={() => setShareDialogOpen(true)}>Share</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
+            <Tooltip title="Undo (Ctrl+Z)">
+              <IconButton onClick={() => undoRef.current?.undo()} sx={{ mr: 0.5 }}><UndoIcon /></IconButton>
+            </Tooltip>
+            <Tooltip title="Redo (Ctrl+Y)">
+              <IconButton onClick={() => undoRef.current?.redo()} sx={{ mr: 1 }}><RedoIcon /></IconButton>
+            </Tooltip>
+            <Button variant="outlined" onClick={handleBack} sx={{ mr: 1 }}>Back</Button>
+            <Button variant="outlined" startIcon={<Share />} onClick={() => setShareDialogOpen(true)} sx={{ mr: 1 }}>Share</Button>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+            <Badge badgeContent={commentCount} color="primary">
+              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+            </Badge>
           </>
         )}
         {isLocked && canEdit && (
           <>
-            <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
+            <Button variant="outlined" onClick={handleBack} sx={{ mr: 1 }}>Back</Button>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+            <Badge badgeContent={commentCount} color="primary">
+              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+            </Badge>
           </>
         )}
         {isLocked && isOwner && (
@@ -619,10 +937,13 @@ const DocumentEditor: React.FC = () => {
           </Button>
         )}
         {isViewOnly && (
-        <>
-          <Button variant="outlined" onClick={() => navigate('/')}>Back to Files</Button>
-          <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF}>Download PDF</Button>
-        </>
+          <>
+            <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back to Files</Button>
+            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+            <Badge badgeContent={commentCount} color="primary">
+              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+            </Badge>
+          </>
         )}
       </Box>
 
@@ -661,6 +982,178 @@ const DocumentEditor: React.FC = () => {
       {canEdit && !isViewOnly && !isLocked && (
         <ShareDialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fileId={id || ''} />
       )}
+
+      {/* Right-click context menu */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleContextMenuClose}
+        anchorReference="anchorPosition"
+        anchorPosition={contextMenu !== null ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
+      >
+        <MenuItem onClick={handleContextMenuComment}>
+          <ListItemIcon><CommentIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Add Comment</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Comments Drawer */}
+      <Drawer
+        anchor="right"
+        open={commentDrawerOpen}
+        onClose={() => setCommentDrawerOpen(false)}
+        PaperProps={{ sx: { width: { xs: '100%', sm: 400 }, p: 2 } }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">
+            <CommentIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+            Comments
+          </Typography>
+          <IconButton onClick={() => setCommentDrawerOpen(false)}><Close /></IconButton>
+        </Box>
+
+        {/* Add new comment (only if text is selected and user can interact) */}
+        {selectedText && !isViewOnly && (
+          <Box sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'action.hover' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Commenting on:</Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                fontStyle: 'italic',
+                p: 1,
+                borderLeft: '3px solid',
+                borderColor: 'primary.main',
+                bgcolor: 'background.paper',
+                borderRadius: 1,
+                mb: 1,
+                wordBreak: 'break-word',
+              }}
+            >
+              "{selectedText.length > 150 ? selectedText.substring(0, 150) + '...' : selectedText}"
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              Block #{selectedBlockIndex + 1}
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              maxRows={4}
+              placeholder="Write your comment..."
+              value={newCommentText}
+              onChange={(e) => setNewCommentText(e.target.value)}
+              size="small"
+              sx={{ mb: 1 }}
+            />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={handleAddComment}
+                disabled={!newCommentText.trim()}
+              >
+                Add Comment
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => { setSelectedText(''); setSelectedBlockIndex(-1); }}
+              >
+                Cancel
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {!selectedText && !isViewOnly && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Select text in the document, then right-click and choose "Add Comment".
+          </Alert>
+        )}
+
+        <Divider sx={{ mb: 2 }} />
+
+        {/* Toggle resolved */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle2">
+            {showResolved ? 'All comments' : 'Open comments'} ({filteredComments.length})
+          </Typography>
+          <Button size="small" onClick={() => setShowResolved(!showResolved)}>
+            {showResolved ? 'Hide resolved' : 'Show resolved'}
+          </Button>
+        </Box>
+
+        {/* Comment list */}
+        {filteredComments.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            No comments yet.
+          </Typography>
+        ) : (
+          filteredComments.map((comment) => (
+            <Box
+              key={comment._id}
+              sx={{
+                mb: 2,
+                p: 2,
+                border: '1px solid',
+                borderColor: comment.resolved ? 'success.main' : 'divider',
+                borderRadius: 2,
+                opacity: comment.resolved ? 0.7 : 1,
+                bgcolor: comment.resolved ? 'action.disabledBackground' : 'background.paper',
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                  {comment.userId?.username || 'Unknown'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {formatCommentDate(comment.createdAt)}
+                </Typography>
+              </Box>
+
+              <Typography
+                variant="body2"
+                sx={{
+                  fontStyle: 'italic',
+                  p: 0.5,
+                  borderLeft: '2px solid',
+                  borderColor: 'text.secondary',
+                  mb: 1,
+                  fontSize: '0.8rem',
+                  color: 'text.secondary',
+                  wordBreak: 'break-word',
+                }}
+              >
+                "{comment.selectedText.length > 100 ? comment.selectedText.substring(0, 100) + '...' : comment.selectedText}"
+              </Typography>
+
+              <Chip label={`Block #${comment.blockIndex + 1}`} size="small" variant="outlined" sx={{ mb: 1 }} />
+
+              <Typography variant="body2" sx={{ mb: 1, wordBreak: 'break-word' }}>
+                {comment.text}
+              </Typography>
+
+              {comment.resolved && (
+                <Chip label="Resolved" size="small" color="success" sx={{ mb: 1 }} />
+              )}
+
+              {!isViewOnly && (
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Tooltip title={comment.resolved ? 'Unresolve' : 'Resolve'}>
+                    <IconButton size="small" onClick={() => handleResolveComment(comment._id)} color={comment.resolved ? 'success' : 'default'}>
+                      {comment.resolved ? <CheckCircle fontSize="small" /> : <CheckCircleOutline fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete comment">
+                    <IconButton size="small" onClick={() => handleDeleteComment(comment._id)} color="error">
+                      <Delete fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
+            </Box>
+          ))
+        )}
+      </Drawer>
     </Box>
   );
 };
