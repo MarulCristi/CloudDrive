@@ -8,6 +8,7 @@ interface IFile extends Document {
     size: number, // In bytes
     createdAt: Date,
     uploadDate: Date,
+    folder: string, // virtual folder path e.g. '/' or '/Documents/Work'
     permissions: Array<{
         _id?: mongoose.Types.ObjectId,
         userId?: mongoose.Types.ObjectId,
@@ -33,6 +34,7 @@ const FileSchema: Schema = new Schema({
     originalName: { type: String, required: true },
     path: { type: String, required: true }, // where it's saved on the server
     size: { type: Number, required: true },
+    folder: { type: String, default: '/' },
     createdAt: { type: Date, default: Date.now },
     uploadDate: { type: Date, default: Date.now },
     permissions: [{

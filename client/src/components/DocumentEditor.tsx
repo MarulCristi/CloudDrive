@@ -6,7 +6,7 @@ import List from '@editorjs/list';
 import {
   Box, Button, Typography, Alert, CircularProgress, Chip,
   Drawer, TextField, IconButton, Divider, Tooltip, Badge,
-  Menu, MenuItem, ListItemIcon, ListItemText
+  Menu, MenuItem, ListItemIcon, ListItemText, useMediaQuery, useTheme
 } from '@mui/material';
 import Table from '@editorjs/table';
 import Quote from '@editorjs/quote';
@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import ShareDialog from './ShareModal';
 import jsPDF from 'jspdf';
+import { useTranslation } from 'react-i18next';
 
 interface CommentData {
   _id: string;
@@ -40,6 +41,9 @@ interface CommentData {
 const DocumentEditor: React.FC = () => {
   const { id, token } = useParams<{ id?: string; token?: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const editorRef = useRef<EditorJS | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -49,6 +53,8 @@ const DocumentEditor: React.FC = () => {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
   const [isViewOnly, setIsViewOnly] = useState(false);
+  const [isImage, setIsImage] = useState(false);
+  const [imagePath, setImagePath] = useState<string>('');
 
   // lock logic
   const [isLocked, setIsLocked] = useState(false);
@@ -239,14 +245,16 @@ const DocumentEditor: React.FC = () => {
         }
 
         const data = await response.json();
-        setFileName(data.filename || 'Untitled Document');
+        setFileName(data.filename || t('editor.untitled'));
         setIsOwner(data.isOwner === true);
 
         const editAllowed = data.canEdit !== false && !token;
         setCanEdit(editAllowed);
 
         if (data.isImage) {
-          setError('Images cannot be edited as text.');
+          setIsImage(true);
+          setImagePath(data.imagePath || '');
+          setIsViewOnly(true);
           setLoading(false);
           return;
         }
@@ -405,15 +413,6 @@ const DocumentEditor: React.FC = () => {
         console.error('Failed to release lock:', err);
       }
     }
-  };
-
-  const handleBack = async () => {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm('Are you sure you want to leave? Unsaved progress will be lost.');
-      if (!confirmed) return;
-    }
-    setHasUnsavedChanges(false);
-    navigate('/');
   };
 
   const handleDownloadPDF = async () => {
@@ -651,11 +650,11 @@ const DocumentEditor: React.FC = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ content: savedData }),
       });
-      if (!response.ok) throw new Error('Failed to save changes');
+      if (!response.ok) throw new Error(t('editor.saveFailed'));
       // Update initial data reference so it's no longer "unsaved"
       initialDataRef.current = JSON.stringify(savedData);
       setHasUnsavedChanges(false);
-      setSuccess('Document saved successfully!');
+      setSuccess(t('editor.savedSuccess'));
       setTimeout(() => navigate('/'), 2000);
     } catch (err: any) {
       setError(err.message);
@@ -849,29 +848,29 @@ const DocumentEditor: React.FC = () => {
   if (loading) return <CircularProgress />;
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '100%', padding: '20px', border: '1px solid', borderColor: 'divider', borderRadius: '4px', minHeight: '500px', '& .ce-block__content': { maxWidth: '100% !important' }, '& .ce-toolbar__content': { maxWidth: '100% !important' }, '& .codex-editor': { maxWidth: '100% !important' }, overflowX: 'auto' }}>
+    <Box sx={{ width: '100%', maxWidth: '100%', padding: { xs: '10px', sm: '20px' }, border: '1px solid', borderColor: 'divider', borderRadius: '4px', minHeight: '500px', '& .ce-block__content': { maxWidth: '100% !important' }, '& .ce-toolbar__content': { maxWidth: '100% !important' }, '& .codex-editor': { maxWidth: '100% !important' }, overflowX: 'auto' }}>
       <Box sx={{ marginBottom: '20px' }}>
-        <Typography variant="h4" sx={{ marginBottom: '10px', marginTop: '25px' }}>
+        <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ marginBottom: '10px', marginTop: '25px', wordBreak: 'break-word' }}>
           {fileName}
           {hasUnsavedChanges && (
-            <Chip label="Unsaved changes" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />
+            <Chip label={t('editor.unsavedChanges')} size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />
           )}
         </Typography>
 
-        {isViewOnly && <Alert severity="info" sx={{ mb: 2 }}>This is a view-only document. You cannot make changes.</Alert>}
+        {isViewOnly && !isImage && <Alert severity="info" sx={{ mb: 2 }}>{t('editor.viewOnly')}</Alert>}
 
         {isLocked && (
           <Alert severity="warning" sx={{ mb: 2 }} icon={<Lock />}>
             {lockCountdown === null ? (
               isFirstInQueue ? (
-                <>This document is currently being edited by <strong>{lockedBy}</strong>. You are next in line - waiting for them to finish.</>
+                <span dangerouslySetInnerHTML={{ __html: t('editor.lockedBy', { user: lockedBy }) + ' ' + t('editor.youAreNext') }} />
               ) : queuePosition > 0 ? (
-                <>This document is currently being edited by <strong>{lockedBy}</strong>. You are <strong>#{queuePosition}</strong> in the queue.</>
+                <span dangerouslySetInnerHTML={{ __html: t('editor.lockedBy', { user: lockedBy }) + ' ' + t('editor.queuePosition', { position: queuePosition }) }} />
               ) : (
-                <>This document is currently being edited by <strong>{lockedBy}</strong>. Waiting for them to finish.</>
+                <span dangerouslySetInnerHTML={{ __html: t('editor.lockedBy', { user: lockedBy }) + ' ' + t('editor.waitingForFinish') }} />
               )
             ) : (
-              <><strong>{lockedBy}</strong> left the document. They have <strong>{lockCountdown}s</strong> to return before you can edit.</>
+              <span dangerouslySetInnerHTML={{ __html: t('editor.leftDocument', { user: lockedBy, seconds: lockCountdown }) }} />
             )}
           </Alert>
         )}
@@ -880,7 +879,7 @@ const DocumentEditor: React.FC = () => {
         {isLocked && queueNames.length > 0 && (
           <Alert severity="info" sx={{ mb: 2 }} icon={<People />}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-              Waiting queue ({queueNames.length} {queueNames.length === 1 ? 'person' : 'people'}):
+              {t('fileManager.waitingQueue')} ({queueNames.length} {queueNames.length === 1 ? t('fileManager.person') : t('fileManager.people')}):
             </Typography>
             {queueNames.map((name, idx) => (
               <Chip
@@ -899,55 +898,62 @@ const DocumentEditor: React.FC = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {canEdit && !isViewOnly && !isLocked && (
-          <>
-            <Button variant="contained" onClick={handleSave} disabled={saving || loading} sx={{ mr: 1 }}>
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-            <Tooltip title="Undo (Ctrl+Z)">
-              <IconButton onClick={() => undoRef.current?.undo()} sx={{ mr: 0.5 }}><UndoIcon /></IconButton>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+            <Tooltip title={t('editor.undo')}>
+              <IconButton onClick={() => undoRef.current?.undo()} size={isMobile ? 'small' : 'medium'}><UndoIcon /></IconButton>
             </Tooltip>
-            <Tooltip title="Redo (Ctrl+Y)">
-              <IconButton onClick={() => undoRef.current?.redo()} sx={{ mr: 1 }}><RedoIcon /></IconButton>
+            <Tooltip title={t('editor.redo')}>
+              <IconButton onClick={() => undoRef.current?.redo()} size={isMobile ? 'small' : 'medium'}><RedoIcon /></IconButton>
             </Tooltip>
-            <Button variant="outlined" onClick={handleBack} sx={{ mr: 1 }}>Back</Button>
-            <Button variant="outlined" startIcon={<Share />} onClick={() => setShareDialogOpen(true)} sx={{ mr: 1 }}>Share</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+            <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<Share />} onClick={() => setShareDialogOpen(true)}>{t('editor.share')}</Button>
+            <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<Download />} onClick={handleDownloadPDF}>{isMobile ? 'PDF' : t('editor.downloadPdf')}</Button>
             <Badge badgeContent={commentCount} color="primary">
-              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+              <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>{t('editor.comments')}</Button>
             </Badge>
-          </>
+            <Box sx={{ flexGrow: 1 }} />
+            <Button variant="contained" size={isMobile ? 'small' : 'medium'} onClick={handleSave} disabled={saving || loading}>
+              {saving ? t('editor.saving') : t('editor.save')}
+            </Button>
+          </Box>
         )}
         {isLocked && canEdit && (
-          <>
-            <Button variant="outlined" onClick={handleBack} sx={{ mr: 1 }}>Back</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+            <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<Download />} onClick={handleDownloadPDF}>{isMobile ? 'PDF' : t('editor.downloadPdf')}</Button>
             <Badge badgeContent={commentCount} color="primary">
-              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+              <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>{t('editor.comments')}</Button>
             </Badge>
-          </>
+          </Box>
         )}
         {isLocked && isOwner && (
           <Button
             variant="contained"
             color="error"
+            size={isMobile ? 'small' : 'medium'}
             onClick={handleForceUnlock}
-            sx={{ mr: 1 }}
+            sx={{ mt: 1 }}
           >
-            Force Unlock
+            {t('editor.forceUnlock')}
           </Button>
         )}
         {isViewOnly && (
-          <>
-            <Button variant="outlined" onClick={() => navigate('/')} sx={{ mr: 1 }}>Back to Files</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={handleDownloadPDF} sx={{ mr: 1 }}>Download PDF</Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+            {!isImage && <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<Download />} onClick={handleDownloadPDF}>{isMobile ? 'PDF' : t('editor.downloadPdf')}</Button>}
             <Badge badgeContent={commentCount} color="primary">
-              <Button variant="outlined" startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>Comments</Button>
+              <Button variant="outlined" size={isMobile ? 'small' : 'medium'} startIcon={<CommentIcon />} onClick={() => setCommentDrawerOpen(true)}>{t('editor.comments')}</Button>
             </Badge>
-          </>
+          </Box>
         )}
       </Box>
 
-      {loading ? (
+      {isImage ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: { xs: 1, sm: 3 }, border: '1px solid', borderColor: 'divider', borderRadius: '4px', minHeight: '300px' }}>
+          <img
+            src={`/${imagePath}`}
+            alt={fileName}
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8 }}
+          />
+        </Box>
+      ) : loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>
       ) : (
         <Box
@@ -992,7 +998,7 @@ const DocumentEditor: React.FC = () => {
       >
         <MenuItem onClick={handleContextMenuComment}>
           <ListItemIcon><CommentIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Add Comment</ListItemText>
+          <ListItemText>{t('editor.commentsDrawer.addCommentMenu')}</ListItemText>
         </MenuItem>
       </Menu>
 
@@ -1006,7 +1012,7 @@ const DocumentEditor: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">
             <CommentIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-            Comments
+            {t('editor.commentsDrawer.title')}
           </Typography>
           <IconButton onClick={() => setCommentDrawerOpen(false)}><Close /></IconButton>
         </Box>
@@ -1014,7 +1020,7 @@ const DocumentEditor: React.FC = () => {
         {/* Add new comment (only if text is selected and user can interact) */}
         {selectedText && !isViewOnly && (
           <Box sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'action.hover' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Commenting on:</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>{t('editor.commentsDrawer.on')}:</Typography>
             <Typography
               variant="body2"
               sx={{
@@ -1051,14 +1057,14 @@ const DocumentEditor: React.FC = () => {
                 onClick={handleAddComment}
                 disabled={!newCommentText.trim()}
               >
-                Add Comment
+                {t('editor.commentsDrawer.post')}
               </Button>
               <Button
                 variant="outlined"
                 size="small"
                 onClick={() => { setSelectedText(''); setSelectedBlockIndex(-1); }}
               >
-                Cancel
+                {t('fileManager.cancel')}
               </Button>
             </Box>
           </Box>
@@ -1066,7 +1072,7 @@ const DocumentEditor: React.FC = () => {
 
         {!selectedText && !isViewOnly && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Select text in the document, then right-click and choose "Add Comment".
+            {t('editor.commentsDrawer.selectText')}
           </Alert>
         )}
 
@@ -1075,17 +1081,17 @@ const DocumentEditor: React.FC = () => {
         {/* Toggle resolved */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="subtitle2">
-            {showResolved ? 'All comments' : 'Open comments'} ({filteredComments.length})
+            {showResolved ? t('editor.commentsDrawer.resolved') : t('editor.commentsDrawer.active')} ({filteredComments.length})
           </Typography>
           <Button size="small" onClick={() => setShowResolved(!showResolved)}>
-            {showResolved ? 'Hide resolved' : 'Show resolved'}
+            {showResolved ? t('editor.commentsDrawer.showActive') : t('editor.commentsDrawer.showResolved')}
           </Button>
         </Box>
 
         {/* Comment list */}
         {filteredComments.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-            No comments yet.
+            {showResolved ? t('editor.commentsDrawer.noResolved') : t('editor.commentsDrawer.noComments')}
           </Typography>
         ) : (
           filteredComments.map((comment) => (
@@ -1133,17 +1139,17 @@ const DocumentEditor: React.FC = () => {
               </Typography>
 
               {comment.resolved && (
-                <Chip label="Resolved" size="small" color="success" sx={{ mb: 1 }} />
+                <Chip label={t('editor.commentsDrawer.resolved')} size="small" color="success" sx={{ mb: 1 }} />
               )}
 
               {!isViewOnly && (
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
-                  <Tooltip title={comment.resolved ? 'Unresolve' : 'Resolve'}>
+                  <Tooltip title={comment.resolved ? t('editor.commentsDrawer.reopen') : t('editor.commentsDrawer.resolve')}>
                     <IconButton size="small" onClick={() => handleResolveComment(comment._id)} color={comment.resolved ? 'success' : 'default'}>
                       {comment.resolved ? <CheckCircle fontSize="small" /> : <CheckCircleOutline fontSize="small" />}
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Delete comment">
+                  <Tooltip title={t('editor.commentsDrawer.delete')}>
                     <IconButton size="small" onClick={() => handleDeleteComment(comment._id)} color="error">
                       <Delete fontSize="small" />
                     </IconButton>

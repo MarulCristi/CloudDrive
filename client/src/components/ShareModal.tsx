@@ -18,6 +18,7 @@ import {
     CircularProgress
 } from '@mui/material';
 import { Delete, ContentCopy, Check } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 interface ShareDialogProps {
     open: boolean;
@@ -44,6 +45,7 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [copied, setCopied] = useState(false);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (open) {
@@ -111,15 +113,15 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
             });
 
             if (response.ok) {
-                setSuccess('Edit access granted!');
+                setSuccess(t('shareDialog.editAccessGranted'));
                 setEmail('');
                 fetchPermissions();
             } else {
                 const data = await response.json();
-                setError(data.error || 'Failed to grant access');
+                setError(data.error || t('shareDialog.failedGrantAccess'));
             }
         } catch (err) {
-            setError('Network error');
+            setError(t('shareDialog.networkError'));
         } finally {
             setLoading(false);
         }
@@ -142,14 +144,14 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
             if (response.ok) {
                 const data = await response.json();
                 setShareLink(data.shareUrl);
-                setSuccess('Share link generated!');
+                setSuccess(t('shareDialog.shareLinkGenerated'));
                 fetchPermissions();
             } else {
                 const data = await response.json();
-                setError(data.error || 'Failed to generate link');
+                setError(data.error || t('shareDialog.failedGenerateLink'));
             }
         } catch (err) {
-            setError('Network error');
+            setError(t('shareDialog.networkError'));
         } finally {
             setLoading(false);
         }
@@ -170,17 +172,17 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
             });
 
             if (response.ok) {
-                setSuccess('Permission removed');
+                setSuccess(t('shareDialog.permissionRemoved'));
                 fetchPermissions();
             }
         } catch (err) {
-            setError('Failed to remove permission');
+            setError(t('shareDialog.failedRemovePermission'));
         }
     };
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-            <DialogTitle>Share Document</DialogTitle>
+            <DialogTitle>{t('shareDialog.title')}</DialogTitle>
             <DialogContent>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                 {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
@@ -188,13 +190,13 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                 {/* Grant Edit Access */}
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                        Grant Edit Access
+                        {t('shareDialog.grantEditAccess')}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <TextField
                             fullWidth
                             size="small"
-                            placeholder="Enter email or username"
+                            placeholder={t('shareDialog.emailPlaceholder')}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleGrantEditAccess()}
@@ -204,7 +206,7 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                             onClick={handleGrantEditAccess}
                             disabled={loading}
                         >
-                            Share
+                            {t('shareDialog.share')}
                         </Button>
                     </Box>
                 </Box>
@@ -214,7 +216,7 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                 {/* Share Link */}
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                        View-Only Link
+                        {t('shareDialog.viewOnlyLink')}
                     </Typography>
                     {shareLink ? (
                         <TextField
@@ -238,7 +240,7 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                             onClick={handleGenerateShareLink}
                             disabled={loading}
                         >
-                            {loading ? <CircularProgress size={20} /> : 'Generate Link'}
+                            {loading ? <CircularProgress size={20} /> : t('shareDialog.generateLink')}
                         </Button>
                     )}
                 </Box>
@@ -248,10 +250,10 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                 {/* Current Permissions */}
                 <Box>
                     <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                        People with Access
+                        {t('shareDialog.peopleWithAccess')}
                     </Typography>
                     {permissions.length === 0 ? (
-                        <Typography color="text.secondary">No one has access yet</Typography>
+                        <Typography color="text.secondary">{t('shareDialog.noAccess')}</Typography>
                     ) : (
                         <List dense>
                             {permissions.map((perm) => (
@@ -279,7 +281,7 @@ function ShareDialog({ open, onClose, fileId }: ShareDialogProps) {
                 </Box>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Close</Button>
+                <Button onClick={onClose}>{t('shareDialog.close')}</Button>
             </DialogActions>
         </Dialog>
     );

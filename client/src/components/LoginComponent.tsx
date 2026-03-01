@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { TextField, Button, Box, Alert, Typography } from "@mui/material";
+import { TextField, Button, Box, Alert, Typography, Link as MuiLink } from "@mui/material";
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 function LoginComponent() {  // Capitalize the name!
     const [emailOrUsername, setEmailOrUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate(); // to navigate back to main page. Couldve also used link, but i like this more
+    const { t } = useTranslation();
 
     const handleLogin = async () => {
         setError(''); // to clear errors
@@ -37,6 +39,7 @@ function LoginComponent() {  // Capitalize the name!
     <Box
       sx={{
         maxWidth: 420,
+        width: '90%',
         margin: '48px auto',
         p: 3,
         borderRadius: 2,
@@ -45,7 +48,7 @@ function LoginComponent() {  // Capitalize the name!
       }}
     >
         <Typography variant="h4" sx={{ color: '#279ce5', mb: 2, textAlign: 'center' }}>
-            Login
+            {t('login.title')}
         </Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -56,7 +59,7 @@ function LoginComponent() {  // Capitalize the name!
             }}
         >
             <TextField
-                label="Email or Username"
+                label={t('login.emailOrUsername')}
                 variant="outlined"
                 fullWidth
                 margin="normal"
@@ -65,7 +68,7 @@ function LoginComponent() {  // Capitalize the name!
             />
 
             <TextField
-                label="Password"
+                label={t('login.password')}
                 type="password"
                 variant="outlined"
                 fullWidth
@@ -80,9 +83,21 @@ function LoginComponent() {  // Capitalize the name!
                 fullWidth
                 sx={{ mt: 2 }}
             >
-                Login
+                {t('login.submit')}
             </Button>
         </form>
+
+        <Typography variant="body2" sx={{ mt: 2, textAlign: 'center' }}>
+            {t('login.noAccount')}{' '}
+            <MuiLink
+                component="button"
+                variant="body2"
+                onClick={() => navigate('/register')}
+                sx={{ cursor: 'pointer' }}
+            >
+                {t('login.register')}
+            </MuiLink>
+        </Typography>
     </Box>
     )
 }

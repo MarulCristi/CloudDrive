@@ -16,6 +16,7 @@ import path from 'path';
 import fs from 'fs';
 import { File } from './models/File.js';
 import { Comment } from './models/Comment.js';
+import { Folder } from './models/Folder.js';
 // Reading .docx and .pdf
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
@@ -50,13 +51,13 @@ db.once("open", async () => {
         console.error("Failed to clear stale locks on startup:", err);
     }
 });
-// File filter to only allow text files
+// File filter to allow text files and images
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('text/') || file.mimetype === 'application/pdf' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    if (file.mimetype.startsWith('text/') || file.mimetype === 'application/pdf' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.mimetype.startsWith('image/')) {
         cb(null, true);
     }
     else {
-        cb(new Error('Only text files are allowed!'));
+        cb(new Error('Only text files and images are allowed!'));
     }
 };
 // Default Multer setup (similar to lectures)
@@ -244,6 +245,7 @@ const uploadProfilePic = multer({
     fileFilter: profilePicFilter
 });
 app.use('/uploads/profiles', express.static(path.join(process.cwd(), 'uploads', 'profiles')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Upload profile picture
 app.post('/api/users/profile-picture', authenticateUser, uploadProfilePic.single('profilePicture'), async (req, res) => {
     try {
@@ -328,6 +330,7 @@ app.post('/api/files/upload', authenticateUser, upload.single('file'), async (re
                     path: newFilePath,
                     size: fs.statSync(newFilePath).size,
                     userId,
+                    folder: req.body.folder || '/',
                     uploadDate: new Date(),
                 });
                 await newFile.save();
@@ -368,18 +371,19 @@ app.post('/api/files/upload', authenticateUser, upload.single('file'), async (re
                 path: newFilePath,
                 size: fs.statSync(newFilePath).size,
                 userId,
+                folder: req.body.folder || '/',
                 uploadDate: new Date(),
             });
             await newFile.save();
             return res.status(200).json({ message: 'File uploaded and converted successfully', file: newFile });
         }
-        // For all other files (.txt, .html, etc.) save normally
         const newFile = new File({
             filename: file.filename,
             originalName: file.originalname,
             path: file.path,
             size: file.size,
             userId,
+            folder: req.body.folder || '/',
             uploadDate: new Date(),
         });
         await newFile.save();
@@ -565,6 +569,7 @@ app.post('/api/files/:id/clone', authenticateUser, async (req, res) => {
             originalName: newOriginalName,
             path: newPath,
             size: original.size,
+            folder: original.folder || '/',
             createdAt: new Date(),
             uploadDate: new Date(),
             permissions: [],
@@ -627,7 +632,9 @@ app.get('/api/files/:id/content', authenticateUser, async (req, res) => {
         const fileExtension = file.originalName.split('.').pop()?.toLowerCase();
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
         if (imageExtensions.includes(fileExtension || '')) {
-            return res.status(200).json({ isImage: true, filename: file.originalName, canEdit: isOwner || userPermission?.permission === 'edit' });
+            // Return image URL so the client can display the image
+            const imagePath = file.path.replace(/\\/g, '/'); // normalize Windows backslashes
+            return res.status(200).json({ isImage: true, filename: file.originalName, imagePath, canEdit: isOwner || userPermission?.permission === 'edit', isOwner });
         }
         const rawContent = fs.readFileSync(file.path, 'utf8');
         let content;
@@ -826,13 +833,16 @@ app.get('/api/files', authenticateUser, async (req, res) => {
         const sortKey = req.query['sortKey'] || 'uploadDate';
         const sortDir = req.query['sortDir'] || 'desc';
         const search = req.query['search'] || '';
+        const folder = req.query['folder'] || '/';
         // Build search filter
         const searchFilter = search
             ? { originalName: { $regex: search, $options: 'i' } }
             : {};
-        // Get files owned by user (NOT deleted)
-        const ownedFilter = { userId: user._id, isDeleted: { $ne: true }, ...searchFilter };
-        const ownedFiles = await File.find(ownedFilter).select('filename originalName size createdAt uploadDate');
+        // Only filter by folder when not searching (search should look across all folders)
+        const folderFilter = search ? {} : { folder };
+        // Get files owned by user (NOT deleted) in the current folder
+        const ownedFilter = { userId: user._id, isDeleted: { $ne: true }, ...folderFilter, ...searchFilter };
+        const ownedFiles = await File.find(ownedFilter).select('filename originalName size createdAt uploadDate folder');
         // Get files shared with user (where they have edit permission) - exclude ones they own, exclude deleted
         const sharedFilter = {
             'permissions.userId': user._id,
@@ -841,7 +851,7 @@ app.get('/api/files', authenticateUser, async (req, res) => {
             isDeleted: { $ne: true },
             ...searchFilter
         };
-        const sharedFiles = await File.find(sharedFilter).select('filename originalName size createdAt uploadDate');
+        const sharedFiles = await File.find(sharedFilter).select('filename originalName size createdAt uploadDate folder');
         // Combine and sort
         const allFiles = [
             ...ownedFiles.map(f => ({ ...f.toObject(), role: 'owner' })),
@@ -1280,6 +1290,174 @@ app.get('/api/files/shared/:token/comments', async (req, res) => {
     }
     catch (error) {
         res.status(401).json({ error: 'Invalid or expired share link' });
+    }
+});
+// ==================== CREATE BLANK DOCUMENT ====================
+app.post('/api/files/create-blank', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { name, folder } = req.body;
+        const docName = (name && name.trim()) ? name.trim() : 'Untitled Document';
+        const targetFolder = folder || '/';
+        // Create EditorJS blank content
+        const editorData = {
+            time: Date.now(),
+            blocks: [{ type: 'paragraph', data: { text: '' } }],
+            version: '2.28.0'
+        };
+        const uploadPath = path.join('uploads', userId.toString());
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}.txt`;
+        const filePath = path.join(uploadPath, filename);
+        fs.writeFileSync(filePath, JSON.stringify(editorData), 'utf8');
+        const originalName = docName.endsWith('.txt') ? docName : `${docName}.txt`;
+        const newFile = new File({
+            userId,
+            filename,
+            originalName,
+            path: filePath,
+            size: fs.statSync(filePath).size,
+            folder: targetFolder,
+            uploadDate: new Date(),
+        });
+        await newFile.save();
+        res.status(201).json({ message: 'Blank document created', file: newFile });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create blank document' });
+    }
+});
+// ==================== IMAGE UPLOAD ====================
+app.post('/api/files/upload-image', authenticateUser, upload.single('file'), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file)
+            return res.status(400).json({ error: 'No file uploaded' });
+        if (!file.mimetype.startsWith('image/')) {
+            // Remove the uploaded file if not an image
+            if (fs.existsSync(file.path))
+                fs.unlinkSync(file.path);
+            return res.status(400).json({ error: 'Only image files are allowed' });
+        }
+        const userId = req.user._id;
+        const targetFolder = req.body.folder || '/';
+        const newFile = new File({
+            filename: file.filename,
+            originalName: file.originalname,
+            path: file.path,
+            size: file.size,
+            userId,
+            folder: targetFolder,
+            uploadDate: new Date(),
+        });
+        await newFile.save();
+        res.status(200).json({ message: 'Image uploaded successfully', file: newFile });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
+// ==================== FOLDER MANAGEMENT ====================
+// Create a new folder
+app.post('/api/folders', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { name, parentPath } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Folder name is required' });
+        }
+        const sanitizedName = name.trim().replace(/[\/]/g, '');
+        if (!sanitizedName) {
+            return res.status(400).json({ error: 'Invalid folder name' });
+        }
+        const parent = parentPath || '/';
+        const fullPath = parent === '/' ? `/${sanitizedName}` : `${parent}/${sanitizedName}`;
+        // Check if folder already exists
+        const existing = await Folder.findOne({ userId, path: fullPath });
+        if (existing) {
+            return res.status(409).json({ error: 'A folder with this name already exists here' });
+        }
+        const folder = new Folder({
+            userId,
+            name: sanitizedName,
+            path: fullPath,
+            parentPath: parent,
+        });
+        await folder.save();
+        res.status(201).json({ message: 'Folder created', folder });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create folder' });
+    }
+});
+// List folders for current path
+app.get('/api/folders', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const parentPath = req.query['parentPath'] || '/';
+        const folders = await Folder.find({ userId, parentPath }).sort({ name: 1 });
+        res.json({ folders });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch folders' });
+    }
+});
+// Delete a folder (and move files inside back to parent)
+app.delete('/api/folders/:id', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const folder = await Folder.findById(req.params['id']);
+        if (!folder)
+            return res.status(404).json({ error: 'Folder not found' });
+        if (folder.userId.toString() !== userId)
+            return res.status(403).json({ error: 'Unauthorized' });
+        // Move files in this folder to its parent
+        await File.updateMany({ userId, folder: folder.path, isDeleted: { $ne: true } }, { $set: { folder: folder.parentPath } });
+        // Delete subfolders recursively
+        await Folder.deleteMany({ userId, path: { $regex: `^${folder.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)` } });
+        // Delete the folder itself
+        await Folder.findByIdAndDelete(req.params['id']);
+        res.json({ message: 'Folder deleted' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete folder' });
+    }
+});
+// Move a file to a different folder
+app.put('/api/files/:id/move', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { targetFolder } = req.body;
+        if (targetFolder === undefined) {
+            return res.status(400).json({ error: 'Target folder is required' });
+        }
+        const file = await File.findById(req.params['id']);
+        if (!file)
+            return res.status(404).json({ error: 'File not found' });
+        if (file.userId.toString() !== userId)
+            return res.status(403).json({ error: 'Unauthorized' });
+        // Verify target folder exists (if not root)
+        if (targetFolder !== '/') {
+            const folderExists = await Folder.findOne({ userId, path: targetFolder });
+            if (!folderExists) {
+                return res.status(404).json({ error: 'Target folder does not exist' });
+            }
+        }
+        file.folder = targetFolder;
+        file.uploadDate = new Date();
+        await file.save();
+        res.json({ message: 'File moved successfully' });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to move file' });
     }
 });
 app.listen(port, () => {

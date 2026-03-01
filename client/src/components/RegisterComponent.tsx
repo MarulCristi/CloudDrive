@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { TextField, Button, Box, Alert, Typography } from "@mui/material";
+import { TextField, Button, Box, Alert, Typography, Link as MuiLink } from "@mui/material";
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 function RegisterComponent() {
     const [username, setUsername] = useState('');
@@ -8,6 +9,7 @@ function RegisterComponent() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const handleRegister = async () => {
         setError('');
@@ -43,6 +45,7 @@ function RegisterComponent() {
         <Box
             sx={{
                 maxWidth: 420,
+                width: '90%',
                 margin: '48px auto',
                 p: 3,
                 borderRadius: 2,
@@ -51,7 +54,7 @@ function RegisterComponent() {
             }}
         >
             <Typography variant="h4" sx={{ color: '#279ce5', mb: 2, textAlign: 'center' }}>
-                Register
+                {t('register.title')}
             </Typography>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -62,7 +65,7 @@ function RegisterComponent() {
                 }}
             >
                 <TextField
-                    label="Username"
+                    label={t('register.username')}
                     variant="outlined"
                     fullWidth
                     margin="normal"
@@ -71,7 +74,7 @@ function RegisterComponent() {
                 />
 
                 <TextField
-                    label="Email"
+                    label={t('register.email')}
                     type="email"
                     variant="outlined"
                     fullWidth
@@ -81,7 +84,7 @@ function RegisterComponent() {
                 />
 
                 <TextField
-                    label="Password"
+                    label={t('register.password')}
                     type="password"
                     variant="outlined"
                     fullWidth
@@ -96,9 +99,21 @@ function RegisterComponent() {
                     fullWidth
                     sx={{ mt: 2 }}
                 >
-                    Register
+                    {t('register.submit')}
                 </Button>
             </form>
+
+            <Typography variant="body2" sx={{ mt: 2, textAlign: 'center' }}>
+                {t('register.haveAccount')}{' '}
+                <MuiLink
+                    component="button"
+                    variant="body2"
+                    onClick={() => navigate('/login')}
+                    sx={{ cursor: 'pointer' }}
+                >
+                    {t('register.login')}
+                </MuiLink>
+            </Typography>
         </Box>
     );
 }

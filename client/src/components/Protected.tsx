@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Box, Button } from '@mui/material';
 import { jwtDecode } from 'jwt-decode'; // npm install jwtDecode to do isTokenExpired
+import { useTranslation } from 'react-i18next';
 
 interface ProtectedRouteProps {
   children: React.ReactNode; // children = everything inside protected.
@@ -20,25 +21,26 @@ function isTokenExpired(token: string): boolean { // currently the token expires
 function Protected({ children }: ProtectedRouteProps) { // wrapper component that can be accessed only after login/register
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   if (!token || isTokenExpired(token)) { // simply check if user has token. If he does, then he's logged in.
     localStorage.removeItem('token');
     return (
     <>
-        <h1>Access Denied</h1>
-        <p>You must log in or create an account to access this page.</p>
+        <h1>{t('protected.accessDenied')}</h1>
+        <p>{t('protected.mustLogin')}</p>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button 
             variant="contained" 
             onClick={() => navigate('/login')}
           >
-            Login
+            {t('protected.login')}
           </Button>
           <Button 
             variant="outlined" 
             onClick={() => navigate('/register')}
           >
-            Create Account
+            {t('protected.createAccount')}
           </Button>
         </Box>
     </>
