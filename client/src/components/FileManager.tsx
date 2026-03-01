@@ -632,7 +632,7 @@ function FileManager() {
     };
 
     return (
-        <Box sx={{ width: '100%', maxWidth: 1200, margin: '80px auto 20px', p: { xs: 1, sm: 3 } }}>
+        <Box sx={{ width: '100%', maxWidth: 1200, margin: '80px auto 20px', p: { xs: 1, sm: 3 }, boxSizing: 'border-box', overflowX: 'hidden' }}>
 
             {/* Header with avatar */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 4, flexWrap: 'wrap' }}>
@@ -681,8 +681,8 @@ function FileManager() {
             <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>{t('fileManager.actions')}</Typography>
 
-                <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Button variant="outlined" component="label" size={isMobile ? 'small' : 'medium'}>
+                <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
+                    <Button variant="outlined" component="label" size={isMobile ? 'small' : 'medium'} sx={isMobile ? { minWidth: 0, fontSize: '0.75rem', px: 1 } : {}}>
                         {t('fileManager.chooseFile')}
                         <input
                             id="file-input"
@@ -693,7 +693,7 @@ function FileManager() {
                         />
                     </Button>
                     {selectedFile && (
-                        <Typography sx={{ flex: 1, minWidth: 100 }}>
+                        <Typography sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: { xs: '0.75rem', sm: '1rem' } }}>
                             {selectedFile.name} ({formatFileSize(selectedFile.size)})
                         </Typography>
                     )}
@@ -703,6 +703,7 @@ function FileManager() {
                         onClick={handleUpload}
                         disabled={!selectedFile || uploading}
                         size={isMobile ? 'small' : 'medium'}
+                        sx={isMobile ? { minWidth: 0, fontSize: '0.75rem', px: 1 } : {}}
                     >
                         {uploading ? t('fileManager.uploading') : t('fileManager.upload')}
                     </Button>
@@ -713,8 +714,9 @@ function FileManager() {
                         component="label"
                         disabled={uploading}
                         size={isMobile ? 'small' : 'medium'}
+                        sx={isMobile ? { minWidth: 0, fontSize: '0.75rem', px: 1 } : {}}
                     >
-                        {t('fileManager.uploadImage')}
+                        {isMobile ? t('fileManager.uploadImage').split(' ')[0] : t('fileManager.uploadImage')}
                         <input
                             type="file"
                             accept="image/*"
@@ -729,8 +731,9 @@ function FileManager() {
                         startIcon={<NoteAdd />}
                         onClick={() => setCreateDocDialogOpen(true)}
                         size={isMobile ? 'small' : 'medium'}
+                        sx={isMobile ? { minWidth: 0, fontSize: '0.75rem', px: 1 } : {}}
                     >
-                        {t('fileManager.newDocument')}
+                        {isMobile ? t('fileManager.newDocument').split(' ')[0] : t('fileManager.newDocument')}
                     </Button>
 
                     <Button
@@ -738,8 +741,9 @@ function FileManager() {
                         startIcon={<CreateNewFolder />}
                         onClick={() => setCreateFolderDialogOpen(true)}
                         size={isMobile ? 'small' : 'medium'}
+                        sx={isMobile ? { minWidth: 0, fontSize: '0.75rem', px: 1 } : {}}
                     >
-                        {t('fileManager.newFolder')}
+                        {isMobile ? t('fileManager.newFolder').split(' ')[0] : t('fileManager.newFolder')}
                     </Button>
                 </Box>
             </Paper>
@@ -751,7 +755,7 @@ function FileManager() {
 
             {/* Tab 0: Files list */}
             {activeTab === 0 && (
-                <Paper sx={{ p: { xs: 2, sm: 3 }, width: '100%' }}>
+                <Paper sx={{ p: { xs: 1.5, sm: 3 }, width: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
                     {/* Breadcrumb navigation */}
                     <Breadcrumbs sx={{ mb: 2 }}>
                         {getBreadcrumbs().map((crumb, index, arr) => (
@@ -829,7 +833,7 @@ function FileManager() {
                     )}
 
                     {/* Search bar */}
-                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, width: '100%' }}>
                         <TextField
                             size="small"
                             placeholder={t('fileManager.searchPlaceholder')}
@@ -858,8 +862,8 @@ function FileManager() {
                     )}
 
                     {/* Sort controls */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1, width: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                             <Typography variant="body2" color="text.secondary">{t('fileManager.sortBy')}</Typography>
                             <ToggleButtonGroup size="small" exclusive value={sortKey}>
                                 <Tooltip title={`${t('fileManager.name')} (${sortKey === 'name' ? sortDir : 'asc'})`}>
@@ -952,8 +956,8 @@ function FileManager() {
                                             </Box>
                                         ) : (
                                             <>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                                    <Typography variant="subtitle1" sx={{ fontWeight: 500 }} noWrap>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, maxWidth: '100%', overflow: 'hidden' }}>
+                                                    <Typography variant="subtitle1" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: '45vw', sm: 'none' } }} noWrap>
                                                         {file.originalName}
                                                     </Typography>
                                                     <Chip
@@ -977,7 +981,7 @@ function FileManager() {
                                         )}
                                     </Box>
                                     <Box
-                                        sx={{ display: 'flex', gap: 0.5 }}
+                                        sx={{ display: 'flex', gap: 0.5, flexShrink: 0, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}
                                         onClick={e => e.stopPropagation()}
                                     >
                                         <Tooltip title={t('fileManager.rename')}>
@@ -1061,8 +1065,8 @@ function FileManager() {
                         </Typography>
                     ) : (
                         trashFiles.map(file => (
-                            <Paper key={file._id} sx={{ p: 2, mb: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: 0.85 }}>
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Paper key={file._id} sx={{ p: { xs: 1.5, sm: 2 }, mb: 1, display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', opacity: 0.85 }}>
+                                <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
                                     <Typography variant="subtitle1" noWrap>{file.originalName}</Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         Size: {formatFileSize(file.size)}

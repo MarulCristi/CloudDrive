@@ -850,7 +850,7 @@ const DocumentEditor: React.FC = () => {
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', padding: { xs: '10px', sm: '20px' }, border: '1px solid', borderColor: 'divider', borderRadius: '4px', minHeight: '500px', '& .ce-block__content': { maxWidth: '100% !important' }, '& .ce-toolbar__content': { maxWidth: '100% !important' }, '& .codex-editor': { maxWidth: '100% !important' }, overflowX: 'auto' }}>
       <Box sx={{ marginBottom: '20px' }}>
-        <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ marginBottom: '10px', marginTop: '25px', wordBreak: 'break-word' }}>
+        <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ marginBottom: '10px', marginTop: '80px', wordBreak: 'break-word' }}>
           {fileName}
           {hasUnsavedChanges && (
             <Chip label={t('editor.unsavedChanges')} size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />
